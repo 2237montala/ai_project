@@ -40,39 +40,14 @@ def findOpenPaths(image,player_entity,block_entity,backgound):
         # A block is a 4 x 2 area of background color with blue around it
         
         # Get a 6 x 4 size area to check for blocks with surrounding blue
-        area = np.zeros((4,6,3),dtype=int)
-        for i in range(0,block_entity.size[1]+2):
-                x = startingPoint[0]-1 + i
-                start = startingPoint[1] - area.shape[1]+1
-                end = startingPoint[1]+1
-                #print("Starting at point {2},{0} to {2},{1}".format(start,end,x))
-                area[i][0:6] = image[x][start:end]
-
-        # Check edges for blue
-        error = 0
-        # Top of box
-        for x in area[0]:
-            if np.array_equal(x,block_entity.color):
-                error += 1
-        # Bottom of box
-        for x in area[-1]:
-            if np.array_equal(x,block_entity.color):
-                error += 1
-        # Left side
-        for i in range(area.shape[0]):
-            if np.array_equal(area[i][0],block_entity.color):
-                error += 1
-        # Right side
-        for i in range(area.shape[0]):
-            if np.array_equal(area[i][-1],block_entity.color):
-                error += 1
+        area = getPixelSample((4,6,3),startingPoint,block_entity,image)        
         
-        if error > 0:
-                wallFound = True
+        if isWall(area,block_entity):
+            wallFound = True
         else:
-                # Go double the length of a block to the left
-                startingPoint[1] -= block_entity.size[0]*2
-                blocksInThisPath+=1
+            # Go double the length of a block to the left
+            startingPoint[1] -= block_entity.size[0]*2
+            blocksInThisPath+=1
 
         # Go in increments of block size
         #print(area)
@@ -80,7 +55,40 @@ def findOpenPaths(image,player_entity,block_entity,backgound):
         
     print("Blocks in this path: {0}".format(blocksInThisPath))
 
+def getPixelSample(pixelArea,startingPoint,block_entity,gameFrame):
+    # Make sure the user passed in a tuple
+    assert(isinstance(pixelArea, tuple))
 
+    area = np.zeros(pixelArea,dtype=int)
+    for i in range(0,block_entity.size[1]+2):
+            x = startingPoint[0]-1 + i
+            start = startingPoint[1] - area.shape[1]+1
+            end = startingPoint[1]+1
+            #print("Starting at point {2},{0} to {2},{1}".format(start,end,x))
+            area[i][0:6] = gameFrame[x][start:end]
+
+    return area
+
+def isWall(sampleArea,block_entity):
+    # Check edges for blue
+    error = 0
+    # Top of box
+    for x in sampleArea[0]:
+        if np.array_equal(x,block_entity.color):
+            error += 1
+    # Bottom of box
+    for x in sampleArea[-1]:
+        if np.array_equal(x,block_entity.color):
+            error += 1
+    # Left side
+    for i in range(sampleArea.shape[0]):
+        if np.array_equal(sampleArea[i][0],block_entity.color):
+            error += 1
+    # Right side
+    for i in range(sampleArea.shape[0]):
+        if np.array_equal(sampleArea[i][-1],block_entity.color):
+            error += 1
+    return error > 0
 
 def main():
 
