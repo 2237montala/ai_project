@@ -127,7 +127,7 @@ def main():
                 closestGhost,ghostDistance = findClosestGhost(observation,listOfGhosts,player)
                 #print(ghostDistance)
 
-                if ghostDistance < 30:
+                if ghostDistance < 40:
                     deltaX = player.location[0] - closestGhost.location[0]
                     deltaY = player.location[1] - closestGhost.location[1]
 
@@ -137,21 +137,21 @@ def main():
                             if random.randint(0,1) == 0:
                                 # Up
                                 print("Same y: up")
-                                action = 2
+                                action = 5
                             else:
                                 # Down
                                 print("Same y: Down")
-                                action = 5
+                                action = 2
 
                     elif abs(deltaX) > abs(deltaY):
                         if deltaX > 0:
                             print("UP")
                             #action = env.action_space(2)
-                            action = 2
+                            action = 5
                         else:
                             print("DOWN")
                             #action = env.action_space(5)
-                            action = 5
+                            action = 2
                     else:
                         if deltaY < 0:
                             
