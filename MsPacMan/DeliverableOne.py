@@ -8,7 +8,30 @@ from math import sqrt
 import copy
 import random
 
-def findSpriteLocation(image,sprite):
+def findSpriteLocation(image,sprite,boardSize):
+    searchSize = 20
+
+    if not np.array_equal(sprite.location,[-1,-1]):
+        # If we have a past ghost location then well search around its known location
+        # We create a box of 40x40 pixels to search
+        # Make sure we done search outside the range of the game board
+        xRange=np.array([sprite.location[0] - searchSize,sprite.location[0] + searchSize])
+        yRange=np.array([sprite.location[1] - searchSize,sprite.location[1] + searchSize])
+
+        np.clip(xRange,0,boardSize[0]-1,out=xRange)
+        np.clip(yRange,0,boardSize[1]-1,out=yRange)
+
+        #print("X range: {0},{1}".format(xRange[0],xRange[1]))
+        #print("Y range: {0},{1}".format(yRange[0],yRange[1]))
+        #print("why are you printing")
+
+        for i in range(xRange[0],xRange[1], 4):
+            for q in range(yRange[0],yRange[1]):
+                if np.array_equal(image[i][q],sprite.color):
+                    return (i,q)
+
+    # If we have no idea where the ghost is or the previous region search fails
+    # then search the whole image for it
     for i in range(0,image.shape[0],4):
         for q in range(image.shape[1]):
             if np.array_equal(image[i][q],sprite.color):
@@ -16,12 +39,12 @@ def findSpriteLocation(image,sprite):
 
     return (-1,-1)
 
-def findClosestGhost(image,listOfGhosts,player_entity):
+def findClosestGhost(image,listOfGhosts,player_entity,boardSize):
     closestGhost = 100000
     whichGhostIsClose = -1
     playerLoc = player_entity.location
     for i in range(len(listOfGhosts)):
-        tempGhost = findSpriteLocation(image,listOfGhosts[i])
+        tempGhost = findSpriteLocation(image,listOfGhosts[i],boardSize)
         listOfGhosts[i].setLocation(tempGhost)
 
         if tempGhost[0] >= 0:
@@ -45,6 +68,7 @@ def randomAction(lastAction):
 
 
 def main():
+    board_size = (210,160)
     ghost_width = 8
     ghost_height = 10
     ghost_size = [ghost_width,ghost_height]
@@ -87,18 +111,16 @@ def main():
 
     env.reset()
 
-    observation,reward,done,_ = env.step(4)
+    observation,reward,done,_ = env.step(4)  
 
-    
-
-    for i in range(90):
+    for i in range(100):
         # Get new state, reward, and if we are done
         observation,reward,done,_ = env.step(3)
         env.render()
         #time.sleep(0.1)
 
     framesSinceLastInput = 0
-    framesBeforeInput = 4
+    framesBeforeInput = 2
     action = 4
     framesSinceLastMove = 0
     framesBeforeRandom = 2
@@ -106,7 +128,7 @@ def main():
     lastAction = 0
 
     while not done:
-        player.setLocation(findSpriteLocation(observation,player))
+        player.setLocation(findSpriteLocation(observation,player,board_size))
     
         # Check if player is stuck
         if player.location == pastPlayer.location:
@@ -124,7 +146,7 @@ def main():
                 action = randomAction(lastAction) 
             else:
                 # If not stuck then try to move away from the closest ghost
-                closestGhost,ghostDistance = findClosestGhost(observation,listOfGhosts,player)
+                closestGhost,ghostDistance = findClosestGhost(observation,listOfGhosts,player,board_size)
                 #print(ghostDistance)
 
                 if ghostDistance < 40:
