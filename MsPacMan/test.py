@@ -53,7 +53,8 @@ def findOpenPaths(image,player_entity,block_entity,backgound,treeNode):
         # Figure out where the first occurance of the background color is
         # Or if there is a path way on any side of the player
         # The valid player area is 12 pixels tall
-        while not np.array_equal(image[playerMid[0]+1][playerMid[1]],block_entity.color):
+        #while not np.array_equal(image[playerMid[0]+1][playerMid[1]],block_entity.color):
+        while test(image,theoreicalPlayer,block_entity.color,12):
             leftUpEdge = [theoreicalPlayer[0] - 2, theoreicalPlayer[1] - 3]
             rightUpEdge = copy.deepcopy(leftUpEdge)
             rightUpEdge[1] += 11
@@ -81,8 +82,8 @@ def findOpenPaths(image,player_entity,block_entity,backgound,treeNode):
 
         # We know we found either a wall or a block
         # Move back one pixel so we can test what it is
-        playerMid[1] += 1
-        theoreicalPlayer[1] += 1
+        #playerMid[1] += 1
+        #theoreicalPlayer[1] += 1
 
         # A wall is a area of background color that has no blue above or below it
         # A block is a 4 x 2 area of background color with blue around it
@@ -117,6 +118,25 @@ def findOpenPaths(image,player_entity,block_entity,backgound,treeNode):
     #treeNode = treeNodeCopy
     print("Blocks in this path: {0}".format(blocksInThisPath))
 
+def test(frame,player_location,block_color,channel_height):
+    # Grabs a channel_heightx1 array of pixels to check for blocks or walls
+    topOfSample = [player_location[0]-1,player_location[1]-1]
+    pixelSample = list()
+
+    for i in range(channel_height):
+        #print("{0},{1}".format(topOfSample[0]+i,topOfSample[1]))
+        pixelSample.append(frame[topOfSample[0]+i][topOfSample[1]])
+
+    # Debug point
+    i = 0
+    # Check if the sample contains any backgroun color in it
+    for pixel in pixelSample:
+        if np.array_equal(pixel,block_color):
+            return False
+
+    return True
+    
+
 def getPixelSample(pixelArea,startingPoint,block_entity,gameFrame):
     # Make sure the user passed in a tuple
     assert(isinstance(pixelArea, tuple))
@@ -124,8 +144,8 @@ def getPixelSample(pixelArea,startingPoint,block_entity,gameFrame):
     area = np.zeros(pixelArea,dtype=int)
     for i in range(0,block_entity.size[1]+2):
             x = startingPoint[0] + i
-            start = startingPoint[1] - area.shape[1]+1
-            end = startingPoint[1]+1
+            start = startingPoint[1] - area.shape[1] + 1
+            end = startingPoint[1] + 1
             #print("Starting at point {2},{0} to {2},{1}".format(start,end,x))
             area[i][0:6] = gameFrame[x][start:end]
 
@@ -205,6 +225,8 @@ def main():
     player.location[0] -= 1
     print("MsPacman around {0}".format(player.location))
 
+
+    #test(observation,player,bg_color,12)
     findPossiblePaths(observation,player,block,bg_color)
     #processedFrame = np.absolute(observation[:,:,2] - observation[:,:,0])
 
