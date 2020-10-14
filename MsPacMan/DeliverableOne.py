@@ -25,6 +25,12 @@ def findSpriteLocation(image,sprite,boardSize):
         #print("Y range: {0},{1}".format(yRange[0],yRange[1]))
         #print("why are you printing")
 
+        # for i in range(xRange[0],xRange[1], 4):
+        #     possibleLocations = np.where(sprite.color == image[i][yRange[0]:yRange[1]])
+        #     if len(possibleLocations[0])>0:
+        #         print([i,possibleLocations[0][0]])
+        #         return [i,possibleLocations[0][0]]
+
         for i in range(xRange[0],xRange[1], 4):
             for q in range(yRange[0],yRange[1]):
                 if np.array_equal(image[i][q],sprite.color):
@@ -32,12 +38,11 @@ def findSpriteLocation(image,sprite,boardSize):
 
     # If we have no idea where the ghost is or the previous region search fails
     # then search the whole image for it
-    for i in range(0,image.shape[0],4):
-        for q in range(image.shape[1]):
-            if np.array_equal(image[i][q],sprite.color):
-                return (i,q)
+    temp = np.where(sprite.color==image)
+    if len(temp[0])>0:
+        return [temp[0][0],temp[1][0]]
+    return [-1,-1]
 
-    return (-1,-1)
 
 def findClosestGhost(image,listOfGhosts,player_entity,boardSize):
     closestGhost = 100000
@@ -107,7 +112,7 @@ def main():
 
     #Give time for the render to open up
     env.render()
-    #time.sleep(2)
+    time.sleep(2)
 
     env.reset()
 
