@@ -108,104 +108,109 @@ def main():
 
     random.seed(time.time)
 
-    env = gym.make("MsPacman-v0",frameskip=2)
+    env = gym.make("MsPacman-v0",frameskip=4)
 
     #Give time for the render to open up
     env.render()
     time.sleep(2)
 
-    env.reset()
-
-    observation,reward,done,_ = env.step(4)  
-
     for i in range(100):
-        # Get new state, reward, and if we are done
-        observation,reward,done,_ = env.step(3)
-        env.render()
-        #time.sleep(0.1)
+        env.reset()
 
-    framesSinceLastInput = 0
-    framesBeforeInput = 2
-    action = 4
-    framesSinceLastMove = 0
-    framesBeforeRandom = 2
-    pastPlayer = player
-    lastAction = 0
+        observation,reward,done,_ = env.step(4)  
 
-    while not done:
-        player.setLocation(findSpriteLocation(observation,player,board_size))
-    
-        # Check if player is stuck
-        if player.location == pastPlayer.location:
-            # Compare the past location to the current
-            framesSinceLastMove +=1
-        else:
-            framesSinceLastMove = 0
+        for i in range(100):
+            # Get new state, reward, and if we are done
+            observation,reward,done,_ = env.step(3)
+            env.render()
+            #time.sleep(0.1)
 
-        if framesSinceLastInput == framesBeforeInput:
-            framesSinceLastInput = 0
+        framesSinceLastInput = 0
+        framesBeforeInput = 2
+        action = 4
+        framesSinceLastMove = 0
+        framesBeforeRandom = 2
+        pastPlayer = player
+        lastAction = 0
+        score = 0
 
-            # If the player is stuck then do a random action
-            if framesSinceLastMove >= framesBeforeRandom:
-                print("Random")
-                action = randomAction(lastAction) 
+        while not done:
+            player.setLocation(findSpriteLocation(observation,player,board_size))
+        
+            # Check if player is stuck
+            if player.location == pastPlayer.location:
+                # Compare the past location to the current
+                framesSinceLastMove +=1
             else:
-                # If not stuck then try to move away from the closest ghost
-                closestGhost,ghostDistance = findClosestGhost(observation,listOfGhosts,player,board_size)
-                #print(ghostDistance)
+                framesSinceLastMove = 0
 
-                if ghostDistance < 40:
-                    deltaX = player.location[0] - closestGhost.location[0]
-                    deltaY = player.location[1] - closestGhost.location[1]
+            if framesSinceLastInput == framesBeforeInput:
+                framesSinceLastInput = 0
 
-                    if 12 < abs(deltaX) > 0:
-                            # Up or down?
-                            # Randnum between 0 and 1
-                            if random.randint(0,1) == 0:
-                                # Up
-                                print("Same y: up")
+                # If the player is stuck then do a random action
+                if framesSinceLastMove >= framesBeforeRandom:
+                    #print("Random")
+                    action = randomAction(lastAction) 
+                else:
+                    # If not stuck then try to move away from the closest ghost
+                    closestGhost,ghostDistance = findClosestGhost(observation,listOfGhosts,player,board_size)
+                    #print(ghostDistance)
+
+                    if ghostDistance < 40:
+                        deltaX = player.location[0] - closestGhost.location[0]
+                        deltaY = player.location[1] - closestGhost.location[1]
+
+                        if 12 < abs(deltaX) > 0:
+                                # Up or down?
+                                # Randnum between 0 and 1
+                                if random.randint(0,1) == 0:
+                                    # Up
+                                    #print("Same y: up")
+                                    action = 5
+                                else:
+                                    # Down
+                                    #print("Same y: Down")
+                                    action = 2
+
+                        elif abs(deltaX) > abs(deltaY):
+                            if deltaX > 0:
+                                #print("UP")
+                                #action = env.action_space(2)
                                 action = 5
                             else:
-                                # Down
-                                print("Same y: Down")
+                                #print("DOWN")
+                                #action = env.action_space(5)
                                 action = 2
-
-                    elif abs(deltaX) > abs(deltaY):
-                        if deltaX > 0:
-                            print("UP")
-                            #action = env.action_space(2)
-                            action = 5
                         else:
-                            print("DOWN")
-                            #action = env.action_space(5)
-                            action = 2
-                    else:
-                        if deltaY < 0:
-                            
-                            print("LEFT")
-                            #action = env.action_space(4)
-                            action = 3
-                            
-                        else:
-                            print("RIGHT")
-                            #action = env.action_space(3)
-                            action = 4
-                            
-           
-        # Save the players new location
-        pastPlayer = copy.deepcopy(player)    
-               
-        # Get new state, reward, and if we are done
-        observation,reward,done,_ = env.step(action)
+                            if deltaY < 0:
+                                
+                                #print("LEFT")
+                                #action = env.action_space(4)
+                                action = 3
+                                
+                            else:
+                                #print("RIGHT")
+                                #action = env.action_space(3)
+                                action = 4
+                                
+            
+            # Save the players new location
+            pastPlayer = copy.deepcopy(player)    
+                
+            # Get new state, reward, and if we are done
+            observation,reward,done,_ = env.step(action)
 
-        lastAction = action
+            score += reward
 
-        env.render()
-        #time.sleep(0.1)
+            lastAction = action
 
-        framesSinceLastInput += 1
+            env.render()
+            #time.sleep(0.1)
 
-    input("Press enter to close window")
+            framesSinceLastInput += 1
+
+        print(score)
+        #input("Press enter to close window")
 
 # Only run code if main called this file
 if __name__ == "__main__":
