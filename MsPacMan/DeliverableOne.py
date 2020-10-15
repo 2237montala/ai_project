@@ -7,6 +7,7 @@ from entity import entity
 from math import sqrt
 import copy
 import random
+import argparse
 
 def findSpriteLocation(image,sprite,boardSize):
     searchSize = 20
@@ -72,7 +73,11 @@ def randomAction(lastAction):
 
 
 
-def main():
+def main(numIterations):
+    # Make sure numIterations is positive
+    if numIterations < 0:
+        numIterations = 1
+
     board_size = (210,160)
     ghost_width = 8
     ghost_height = 10
@@ -103,38 +108,42 @@ def main():
     listOfGhosts.append(orng_ghost)
 
     block = entity(block_color,block_size)    
-
     bg_color = [0,28,136]
 
     random.seed(time.time)
 
+    #Create enviornemnt
     env = gym.make("MsPacman-v0",frameskip=2)
 
     #Give time for the render to open up
     env.render()
     time.sleep(2)
 
-    numIterations = 100
+    framesBeforeRandom = 2
+    framesBeforeInput = 2
     scores = list()
     for i in range(numIterations):
+        # Need to reset enviornment before running
         env.reset()
 
         observation,reward,done,_ = env.step(4)  
 
-        for i in range(100):
-            # Get new state, reward, and if we are done
+        # This loop is for the begining sequence where the starting tune is played
+        # We just skip past it
+        for q in range(100):
             observation,reward,done,_ = env.step(3)
             env.render()
-            #time.sleep(0.1)
 
+        # Vars for keeping track of game
         framesSinceLastInput = 0
-        framesBeforeInput = 2
-        action = 4
         framesSinceLastMove = 0
-        framesBeforeRandom = 2
-        pastPlayer = player
         lastAction = 0
         score = 0
+        action = 4
+        
+        # Need a previous to check if we are stuck
+        pastPlayer = player
+        
 
         while not done:
             player.setLocation(findSpriteLocation(observation,player,board_size))
@@ -162,6 +171,8 @@ def main():
                         deltaX = player.location[0] - closestGhost.location[0]
                         deltaY = player.location[1] - closestGhost.location[1]
 
+                        # Check if we are on the same x as the closest ghost
+                        # If so we want to move up or down to get away from it
                         if 12 < abs(deltaX) > 0:
                                 # Up or down?
                                 # Randnum between 0 and 1
@@ -174,25 +185,25 @@ def main():
                                     #print("Same y: Down")
                                     action = 2
 
+                        # Figure out if the closest ghost is above/below or left/right of us
                         elif abs(deltaX) > abs(deltaY):
+                            # If below us we want to go up
                             if deltaX > 0:
                                 #print("UP")
-                                #action = env.action_space(2)
                                 action = 5
                             else:
+                                # If above us we want to go up
                                 #print("DOWN")
-                                #action = env.action_space(5)
                                 action = 2
                         else:
+                            # If to the right of us we want to go left
                             if deltaY < 0:
-                                
                                 #print("LEFT")
-                                #action = env.action_space(4)
                                 action = 3
                                 
                             else:
+                                # If to the right of us we want to go right
                                 #print("RIGHT")
-                                #action = env.action_space(3)
                                 action = 4
                                 
             
@@ -203,20 +214,26 @@ def main():
             observation,reward,done,_ = env.step(action)
 
             score += reward
-
             lastAction = action
-
-            env.render()
-            #time.sleep(0.1)
-
             framesSinceLastInput += 1
 
-        print(score)
-        scores[i] = score
-        #input("Press enter to close window")
+            # Display the game
+            env.render()
+
+            
+
+        print("Run {0}: {1}".format(i,int(score)))
+        scores.append(score)
     
-    print(np.average(scores))
+    if numIterations > 1:
+        print("Average score: {0}".format(int(np.average(scores))))
 
 # Only run code if main called this file
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-e',type=int,default=1)
+    args = parser.parse_args()
+
+    numIterations = int(args.e)
+
+    main(numIterations)
