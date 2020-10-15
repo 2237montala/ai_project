@@ -108,13 +108,15 @@ def main():
 
     random.seed(time.time)
 
-    env = gym.make("MsPacman-v0",frameskip=4)
+    env = gym.make("MsPacman-v0",frameskip=2)
 
     #Give time for the render to open up
     env.render()
     time.sleep(2)
 
-    for i in range(100):
+    numIterations = 100
+    scores = list()
+    for i in range(numIterations):
         env.reset()
 
         observation,reward,done,_ = env.step(4)  
@@ -210,7 +212,10 @@ def main():
             framesSinceLastInput += 1
 
         print(score)
+        scores[i] = score
         #input("Press enter to close window")
+    
+    print(np.average(scores))
 
 # Only run code if main called this file
 if __name__ == "__main__":
