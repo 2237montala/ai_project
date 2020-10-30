@@ -4,6 +4,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
 import os
+import sys
 # import tflearn
 # from tflearn.layers.core import input_data, dropout, fully_connected
 # from tflearn.layers.estimator import regression
@@ -16,20 +17,27 @@ env = gym.make("MsPacman-v0")
 possibleMoves = [2   ,5  ,3   ,4]
 possibleMovesLen = len(possibleMoves)
 numTrainingData = 50
-maxTrainingStep = 300
-trainingScoreThreshold = 100
+maxTrainingStep = 700
+trainingScoreThreshold = 300
+
+FRAME_X_SIZE = 170
+FRAME_Y_SIZE = 160
 
 ABSOLUTE_FILE_PATH='~/home/anthony/tensorflowEnv/ai_project'
 
 def getTrainingData(trainingDataSize, maxTrainingSteps, trainingScoreMin):
     trainingData = list()
     kept=0
-    for __ in range(trainingDataSize):
+    while(kept < trainingDataSize):
         env.reset()
 
         gameFrames = []
         lastFrame = []
         gameScore = 0
+
+        for _ in range(80):
+            action = env.action_space.sample()
+            lastFrame, reward, done, info = env.step(action)
 
         # Run a test game
         for i in range(maxTrainingSteps):
@@ -50,23 +58,40 @@ def getTrainingData(trainingDataSize, maxTrainingSteps, trainingScoreMin):
             kept +=1
             # Good enough game so add it to training data
             for frame in gameFrames:
-                trainingData.append([frame[0][0:180],frame[1]])
-            #     possibleFrames = frame[0]
-            #     targetData = [possibleFrames,1]
-            #     trainingData.append([frame[0],targetData])
+                # Make a target array the length of the possible actions
+                temp = np.zeros(env.action_space.n) 
+
+                # Fill in a 1 where this frame did its action
+                temp[frame[1]] = 1
+
+
+                trainingData.append([preprocessFrame(frame[0],FRAME_X_SIZE),temp])
+
+            if(kept % int(trainingDataSize/10) == 0):
+                print("{0} games out of {1} saved".format(kept,trainingDataSize))
 
 
     print("Collected training data")
-    print("{0} games were samples and {1} were kept".format(trainingDataSize,kept))
-    #np.save("TRAINING_DATA_200",np.array(trainingData))
+    #np.save("TRAINING_DATA_300_at_score_250",np.array(trainingData))
     return trainingData
 
+def preprocessFrame(frameIn, sizeX):
+    # Make array into numpy array
+    # Cut off bottom of image
+    frameNp = np.array(frameIn[0:sizeX])
+
+    # Grey scale image
+    # https://stackoverflow.com/questions/12201577/how-can-i-convert-an-rgb-image-into-grayscale-in-python
+    np.dot(frameIn[...,:3],[0.2989,0.5870,0.1140])
+
+    # Reshape array to be x,y, (gray scale)
+    frameNp = frameNp.reshape(frameNp.shape[1],1)
+
+    return frameNp
+
 def seperateTrainingData(trainingDataSet):
-    trainingData = []
-    targetData = []
-    for data in trainingDataSet:
-        trainingData.append(data[0])
-        targetData.append(data[1])
+    trainingData = np.array(trainingDataSet[0:][0])
+    targetData = np.array(trainingDataSet[0:][1])
 
     return (trainingData,targetData)
 
@@ -80,14 +105,15 @@ def loadInTrainingData(fileName):
         
 
 def createNetwork(inputDataSize, numValidMoves,learningRate, decayRate):
-    # http://tflearn.org/layers/core/
     network = keras.Sequential(
         [
-            layers.Conv2D(32,3,3, activation='relu',input_shape=inputDataSize),
-            layers.Conv2D(64,3,3,activation='relu'),
-            #layers.Dropout(0.8, noise_shape=(batchSize,1,)),
-            #layers.Conv2D(32,3,3,activation='relu'),
-            layers.Dense(numValidMoves,activation='softmax'),
+            layers.Input(shape=inputDataSize),
+            layers.Conv2D(32,3,2, activation='relu'),
+            layers.Conv2D(64,3,2, activation='relu'),
+            layers.Dropout(0.8),
+            layers.Dense(32,activation='relu'),
+            layers.Flatten(),
+            layers.Dense(env.action_space.n,activation='softmax'),
         ]
     )
 
@@ -106,11 +132,13 @@ def getAction(predictions):
 
     return possibleMoves[predictionIndex]
 
-def modelPlay(model, renderGame=False):
-    done = False
+def modelPlay(model, gamesToPlay=1, renderGame=False):
+    
     scores = []
-    for i in range(10):
-        env.reset()
+    for i in range(gamesToPlay):
+        print("Game {0}".format(i))
+        observation = env.reset()
+        done = False
 
         score = 0
         while not done:
@@ -118,7 +146,11 @@ def modelPlay(model, renderGame=False):
                 env.render()
 
             #Get new state, reward, and if we are done
-            action = getAction(model.predict())
+            procdArr = list()
+            procdArr.append(preprocessFrame(observation,FRAME_X_SIZE))
+            npDoubleObv = np.array(procdArr)
+
+            action = np.argmax(model.predict(npDoubleObv))
             observation,reward,done,_ = env.step(action)
             
             score += reward
@@ -129,39 +161,42 @@ def modelPlay(model, renderGame=False):
     return scores
 
 def main():
-    # Get training data
-
-    print("Getting training data")
-    trainingDataSet = getTrainingData(numTrainingData,maxTrainingStep,trainingScoreThreshold)
-    #trainingDataSet = loadInTrainingData('/trainingData/TRAINING_DATA.npy')
-
-    # Spit training data into raw data and targets
-    data, targets = seperateTrainingData(trainingDataSet)
-
-    npData = np.array(data)
-    npTarget = np.array(targets)
-
     # Create model
     print("Creating model")
-    # model = createNetwork(inputDataSize=(180,160,3), numValidMoves=possibleMovesLen,learningRate=0.001,decayRate=(0.001/2))
-    # model.save('oldModels/uncompiled')
-
-    model = keras.models.load_model('oldModels/uncompiled')
-
+    model = createNetwork(inputDataSize=(FRAME_X_SIZE,FRAME_Y_SIZE,1), numValidMoves=possibleMovesLen,learningRate=0.001,decayRate=(0.001/2))
+    # #model = keras.models.load_model('oldModels/uncompiled')
     model.summary()
-    
 
-    # Train model
-    print("Training model")
-    history = model.fit(npData,npTarget,batch_size=64,epochs=2)
+    for i in range(10):
+        print("Getting training data")
+        trainingDataSet = getTrainingData(numTrainingData,maxTrainingStep,trainingScoreThreshold)
 
-    # Save the model for later
+        #trainingDataSet = loadInTrainingData('/trainingData/TRAINING_DATA.npy')
+
+        # Spit training data into raw data and targets
+        data, targets = seperateTrainingData(trainingDataSet)
+
+        if(len(data) == 0):
+            sys.exit()
+
+        # Train model
+        print("Training model")
+        history = model.fit(data,targets,batch_size=32,epochs=5)
+        
+
     model.save('oldModels/')
+    print("Loading in old model")
+    model = keras.models.load_model('oldModels')
 
     # Run the model on a live game
-    testingScores = modelPlay(model)
-    print("Average score for 10 games: {0}".format(testingScores[-1]))
+    print("Testing models")
+    testingScores = modelPlay(model,20)
+    
+    print("Average score for {0} games: {1}".format(20,testingScores[-1]))
     print(testingScores[:-1])
+
+    testingScores = modelPlay(model,renderGame=True)
+    input()
 
 # Only run code if main called this file
 if __name__ == "__main__":
