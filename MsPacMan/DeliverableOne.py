@@ -144,8 +144,8 @@ def main(numIterations):
         # Need a previous to check if we are stuck
         pastPlayer = player
         
-
-        while not done:
+        for i in range(1000):
+        #while not done:
             player.setLocation(findSpriteLocation(observation,player,board_size))
         
             # Check if player is stuck

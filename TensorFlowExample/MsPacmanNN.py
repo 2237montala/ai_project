@@ -5,75 +5,112 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import os
 import sys
-# import tflearn
-# from tflearn.layers.core import input_data, dropout, fully_connected
-# from tflearn.layers.estimator import regression
+import datetime
+from keras.callbacks import TensorBoard
 from gym.envs.classic_control import rendering
+from OldAI import OldAi
 
 # Create game
-env = gym.make("MsPacman-v0")
+env = gym.make("MsPacman-v0",frameskip=2)
 
 #                UP DOWN LEFT RIGHT
 possibleMoves = [2   ,5  ,3   ,4]
 possibleMovesLen = len(possibleMoves)
-numTrainingData = 50
-maxTrainingStep = 700
-trainingScoreThreshold = 300
+numGamesToTrainOn = 1000
+maxTrainingStep = 1000
+trainingScoreThreshold = 250
 
 FRAME_X_SIZE = 170
 FRAME_Y_SIZE = 160
 
 ABSOLUTE_FILE_PATH='~/home/anthony/tensorflowEnv/ai_project'
 
-def getTrainingData(trainingDataSize, maxTrainingSteps, trainingScoreMin):
-    trainingData = list()
-    kept=0
-    while(kept < trainingDataSize):
-        env.reset()
+class DataGenerator(tf.keras.utils.Sequence):
+    def __init__(self,batchSize, gamesToRun, maxTrainingSteps, trainingScoreMin):
+        self.batch_size = batchSize
+        self.gameSteps = maxTrainingStep
+        self.gamesToRun = gamesToRun
+        self.gameMinScore = trainingScoreMin
+        self.trainAiType = OldAi((180,160))
+    def __len__(self):
+        return self.gamesToRun // self.batch_size
 
-        gameFrames = []
-        lastFrame = []
-        gameScore = 0
+    def __getitem__(self,index):
+        #return self.getTrainingData()
+        return self.getTrainingDataOldAi()
 
-        for _ in range(80):
-            action = env.action_space.sample()
-            lastFrame, reward, done, info = env.step(action)
+    def getTrainingDataOldAi(self):
+        trainingData = list()
+        kept=0
+        while(kept < self.batch_size):
+            env.reset()
 
-        # Run a test game
-        for i in range(maxTrainingSteps):
-            # Enable if you want to see training data
-            #env.render()
-            action = env.action_space.sample()
+            gameFrames = []
+            gameScore = 0
 
-            if i > 0:
-                gameFrames.append([lastFrame,action])
+            gameScore, gameFrames = self.trainAiType.runGame(env,self.gameSteps)
 
-            lastFrame, reward, done, info = env.step(action)
-            gameScore += reward
-            if done:
-                break
+            if gameScore > self.gameMinScore:
+                kept +=1
+                # Good enough game so add it to training data
+                for frame in gameFrames:
+                    # Make a target array the length of the possible actions
 
-        #print(gameScore)
-        if gameScore > trainingScoreMin:
-            kept +=1
-            # Good enough game so add it to training data
-            for frame in gameFrames:
-                # Make a target array the length of the possible actions
-                temp = np.zeros(env.action_space.n) 
+                    temp = np.zeros(env.action_space.n) 
 
-                # Fill in a 1 where this frame did its action
-                temp[frame[1]] = 1
+                    # Fill in a 1 where this frame did its action
+                    temp[frame[1]] = 1
 
+                    trainingData.append([preprocessFrame(frame[0],FRAME_X_SIZE),temp])
 
-                trainingData.append([preprocessFrame(frame[0],FRAME_X_SIZE),temp])
+                # if(kept % int(trainingDataSize/10) == 0):
+                #     print("{0} games out of {1} saved".format(kept,trainingDataSize))
 
-            if(kept % int(trainingDataSize/10) == 0):
-                print("{0} games out of {1} saved".format(kept,trainingDataSize))
+        return seperateTrainingData(trainingData)
 
+    def getTrainingData(self):
+        trainingData = list()
+        kept=0
+        while(kept < self.batch_size):
+            env.reset()
 
-    print("Collected training data")
-    #np.save("TRAINING_DATA_300_at_score_250",np.array(trainingData))
-    return trainingData
+            gameFrames = []
+            lastFrame = []
+            gameScore = 0
+
+            for _ in range(80):
+                action = env.action_space.sample()
+                lastFrame, reward, done, info = env.step(action)
+
+            # Run a test game
+            for i in range(self.gameSteps):
+                action = env.action_space.sample()
+
+                if i > 0:
+                    gameFrames.append([lastFrame,action])
+
+                lastFrame, reward, done, info = env.step(action)
+                gameScore += reward
+                if done:
+                    break
+
+            if gameScore > self.gameMinScore:
+                kept +=1
+                # Good enough game so add it to training data
+                for frame in gameFrames:
+                    # Make a target array the length of the possible actions
+
+                    temp = np.zeros(env.action_space.n) 
+
+                    # Fill in a 1 where this frame did its action
+                    temp[frame[1]] = 1
+
+                    trainingData.append([preprocessFrame(frame[0],FRAME_X_SIZE),temp])
+
+                # if(kept % int(trainingDataSize/10) == 0):
+                #     print("{0} games out of {1} saved".format(kept,trainingDataSize))
+
+        return seperateTrainingData(trainingData)
 
 def preprocessFrame(frameIn, sizeX):
     # Make array into numpy array
@@ -82,42 +119,43 @@ def preprocessFrame(frameIn, sizeX):
 
     # Grey scale image
     # https://stackoverflow.com/questions/12201577/how-can-i-convert-an-rgb-image-into-grayscale-in-python
-    np.dot(frameIn[...,:3],[0.2989,0.5870,0.1140])
-
-    # Reshape array to be x,y, (gray scale)
-    frameNp = frameNp.reshape(frameNp.shape[1],1)
-
-    return frameNp
+    #return np.array(np.dot(frameNp[...,:3],[0.2989,0.5870,0.1140],),dtype=np.uint8)
+    grayFrame = np.dot(frameNp[...,:3],[0.2989,0.5870,0.1140])
+    return grayFrame.astype(np.uint8)
 
 def seperateTrainingData(trainingDataSet):
-    trainingData = np.array(trainingDataSet[0:][0])
-    targetData = np.array(trainingDataSet[0:][1])
+    trainingData = []
+    targetData = []
+    for data in trainingDataSet:
+        trainingData.append(data[0])
+        targetData.append(data[1])
 
-    return (trainingData,targetData)
-
-def loadInTrainingData(fileName):
-    if(os.path.isfile(fileName)):
-        trainingData = []
-        with np.load(fileName) as data:
-            a = data['a']
-    else:
-        print("not found")
-        
+    trainingDataNp = np.array(trainingData)
+    trainingDataNp = trainingDataNp.reshape((trainingDataNp.shape[0],
+                                            trainingDataNp.shape[1],
+                                            trainingDataNp.shape[2],1))
+    return (trainingDataNp,np.array(targetData,dtype=np.uint8))        
 
 def createNetwork(inputDataSize, numValidMoves,learningRate, decayRate):
     network = keras.Sequential(
         [
             layers.Input(shape=inputDataSize),
-            layers.Conv2D(32,3,2, activation='relu'),
-            layers.Conv2D(64,3,2, activation='relu'),
-            layers.Dropout(0.8),
-            layers.Dense(32,activation='relu'),
+            #layers.Conv2D(16,2,2, activation='relu'),
+            layers.Conv2D(16,(2,2),2, activation='relu'),
+            #layers.Conv2D(16,3,2, activation='relu'),
+            layers.MaxPool2D(pool_size=(2,2)),
+            layers.Dropout(0.5),
+            layers.Conv2D(16,3,2, activation='relu'),
+            layers.Conv2D(8,3,2, activation='relu'),
+            #layers.MaxPool2D(pool_size=(2,2)),
+            layers.Dropout(0.5),
+            #layers.Dense(16, activation='relu'),
             layers.Flatten(),
             layers.Dense(env.action_space.n,activation='softmax'),
         ]
     )
 
-    sgd = tf.keras.optimizers.SGD(lr=learningRate, decay=decayRate, momentum=0.5)
+    sgd = tf.keras.optimizers.SGD(lr=learningRate, decay=decayRate, momentum=0.8)
 
     network.compile(loss='categorical_crossentropy',
                     optimizer=sgd,
@@ -133,10 +171,9 @@ def getAction(predictions):
     return possibleMoves[predictionIndex]
 
 def modelPlay(model, gamesToPlay=1, renderGame=False):
-    
     scores = []
     for i in range(gamesToPlay):
-        print("Game {0}".format(i))
+        #print("Game {0}".format(i+1))
         observation = env.reset()
         done = False
 
@@ -149,54 +186,57 @@ def modelPlay(model, gamesToPlay=1, renderGame=False):
             procdArr = list()
             procdArr.append(preprocessFrame(observation,FRAME_X_SIZE))
             npDoubleObv = np.array(procdArr)
+            npDoubleObv = npDoubleObv.reshape((npDoubleObv.shape[0],
+                                            npDoubleObv.shape[1],
+                                            npDoubleObv.shape[2],1))
 
             action = np.argmax(model.predict(npDoubleObv))
+            #print(action)
             observation,reward,done,_ = env.step(action)
             
             score += reward
 
-        scores.append(scores)
-    
-    scores.append(np.average(scores))
-    return scores
+        scores.append(score)
+    return scores,np.average(scores)
 
 def main():
-    # Create model
-    print("Creating model")
-    model = createNetwork(inputDataSize=(FRAME_X_SIZE,FRAME_Y_SIZE,1), numValidMoves=possibleMovesLen,learningRate=0.001,decayRate=(0.001/2))
-    # #model = keras.models.load_model('oldModels/uncompiled')
+    # # Create model
+    # print("Creating model")
+    # model = createNetwork(inputDataSize=(FRAME_X_SIZE,FRAME_Y_SIZE,1), numValidMoves=possibleMovesLen,learningRate=0.1,decayRate=(0.001/2))
+    # # #model = keras.models.load_model('oldModels/uncompiled')
+
+    model = keras.models.load_model('/home/anthony/tensorflowEnv/ai_project/TensorFlowExample/oldModels/try4/')
+
     model.summary()
 
-    for i in range(10):
-        print("Getting training data")
-        trainingDataSet = getTrainingData(numTrainingData,maxTrainingStep,trainingScoreThreshold)
+    # Create a TensorBoard instance with the path to the logs directory
+    #log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    #tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir)
 
-        #trainingDataSet = loadInTrainingData('/trainingData/TRAINING_DATA.npy')
+    # batchSize = 2
+    # #dataGenTrain = DataGenerator(batchSize=batchSize, gamesToRun=numGamesToTrainOn,maxTrainingSteps=maxTrainingStep,trainingScoreMin=trainingScoreThreshold)
+    # dataGenTrain = DataGenerator(batchSize=batchSize, gamesToRun=numGamesToTrainOn,maxTrainingSteps=maxTrainingStep,trainingScoreMin=600)
 
-        # Spit training data into raw data and targets
-        data, targets = seperateTrainingData(trainingDataSet)
+    # #trainGen = dataGenTrain.getTrainingData()
 
-        if(len(data) == 0):
-            sys.exit()
+    # model.fit(dataGenTrain,steps_per_epoch=numGamesToTrainOn / batchSize,
+    #             epochs=5, use_multiprocessing=True, workers=2)
 
-        # Train model
-        print("Training model")
-        history = model.fit(data,targets,batch_size=32,epochs=5)
-        
+    # model.save('oldModels/try4')
 
-    model.save('oldModels/')
-    print("Loading in old model")
-    model = keras.models.load_model('oldModels')
+    # print("Loading in old model")
+    #model = keras.models.load_model('/home/anthony/tensorflowEnv/ai_project/TensorFlowExample/oldModels/slightlyBetterThanRandom/')
 
-    # Run the model on a live game
+    #Run the model on a live game
     print("Testing models")
-    testingScores = modelPlay(model,20)
+    testingScores, average = modelPlay(model,20,renderGame=True)
     
-    print("Average score for {0} games: {1}".format(20,testingScores[-1]))
-    print(testingScores[:-1])
+    print("Average score for {0} games: {1}".format(20,average))
+    print(testingScores)
 
+    input("Press enter to watch a live game")
     testingScores = modelPlay(model,renderGame=True)
-    input()
+    
 
 # Only run code if main called this file
 if __name__ == "__main__":
