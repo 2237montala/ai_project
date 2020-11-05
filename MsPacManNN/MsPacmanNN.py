@@ -195,7 +195,7 @@ def main():
     # # Create model
     # print("Creating model")
     # model = createNetwork(inputDataSize=(FRAME_X_SIZE,FRAME_Y_SIZE,1), numValidMoves=possibleMovesLen,learningRate=0.1,decayRate=(0.001/2))
-    
+
     # Set up periodic saving of models
     # checkpoint = ModelCheckpoint("bestModel/", monitor='accuracy', verbose=1,
     # save_best_only=True, mode='max')
@@ -215,7 +215,7 @@ def main():
     #             epochs=7, callbacks=[checkpoint], use_multiprocessing=True, workers=2)
 
     # model.save('oldModels/try6')
-
+    
     #Run the model on a live game
     print("Testing models")
     testingScores, average = modelPlay(model,1,renderGame=True)
