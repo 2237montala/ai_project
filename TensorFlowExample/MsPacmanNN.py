@@ -24,8 +24,6 @@ trainingScoreThreshold = 250
 FRAME_X_SIZE = 170
 FRAME_Y_SIZE = 160
 
-ABSOLUTE_FILE_PATH='~/home/anthony/tensorflowEnv/ai_project'
-
 class DataGenerator(tf.keras.utils.Sequence):
     def __init__(self,batchSize, gamesToRun, maxTrainingSteps, trainingScoreMin):
         self.batch_size = batchSize
@@ -197,14 +195,13 @@ def main():
     # # Create model
     # print("Creating model")
     # model = createNetwork(inputDataSize=(FRAME_X_SIZE,FRAME_Y_SIZE,1), numValidMoves=possibleMovesLen,learningRate=0.1,decayRate=(0.001/2))
-    # # #model = keras.models.load_model('oldModels/uncompiled')
-
+    
     # Set up periodic saving of models
     # checkpoint = ModelCheckpoint("bestModel/", monitor='accuracy', verbose=1,
     # save_best_only=True, mode='max')
 
 
-    model = keras.models.load_model('/home/anthony/tensorflowEnv/ai_project/TensorFlowExample/oldModels/try4/')
+    model = keras.models.load_model('oldModels/try4/')
 
     model.summary()
 
@@ -219,12 +216,9 @@ def main():
 
     # model.save('oldModels/try6')
 
-    # print("Loading in old model")
-    #model = keras.models.load_model('/home/anthony/tensorflowEnv/ai_project/TensorFlowExample/oldModels/slightlyBetterThanRandom/')
-
     #Run the model on a live game
     print("Testing models")
-    testingScores, average = modelPlay(model,100,renderGame=True)
+    testingScores, average = modelPlay(model,1,renderGame=True)
     
     print("Average score for {0} games: {1}".format(100,average))
     print(testingScores)
