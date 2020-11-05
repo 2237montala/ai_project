@@ -8,6 +8,7 @@ import sys
 import datetime
 from keras.callbacks import TensorBoard
 from gym.envs.classic_control import rendering
+from keras.callbacks import ModelCheckpoint
 from OldAI import OldAi
 
 # Create game
@@ -63,9 +64,6 @@ class DataGenerator(tf.keras.utils.Sequence):
 
                     trainingData.append([preprocessFrame(frame[0],FRAME_X_SIZE),temp])
 
-                # if(kept % int(trainingDataSize/10) == 0):
-                #     print("{0} games out of {1} saved".format(kept,trainingDataSize))
-
         return seperateTrainingData(trainingData)
 
     def getTrainingData(self):
@@ -107,9 +105,6 @@ class DataGenerator(tf.keras.utils.Sequence):
 
                     trainingData.append([preprocessFrame(frame[0],FRAME_X_SIZE),temp])
 
-                # if(kept % int(trainingDataSize/10) == 0):
-                #     print("{0} games out of {1} saved".format(kept,trainingDataSize))
-
         return seperateTrainingData(trainingData)
 
 def preprocessFrame(frameIn, sizeX):
@@ -119,7 +114,6 @@ def preprocessFrame(frameIn, sizeX):
 
     # Grey scale image
     # https://stackoverflow.com/questions/12201577/how-can-i-convert-an-rgb-image-into-grayscale-in-python
-    #return np.array(np.dot(frameNp[...,:3],[0.2989,0.5870,0.1140],),dtype=np.uint8)
     grayFrame = np.dot(frameNp[...,:3],[0.2989,0.5870,0.1140])
     return grayFrame.astype(np.uint8)
 
@@ -205,13 +199,14 @@ def main():
     # model = createNetwork(inputDataSize=(FRAME_X_SIZE,FRAME_Y_SIZE,1), numValidMoves=possibleMovesLen,learningRate=0.1,decayRate=(0.001/2))
     # # #model = keras.models.load_model('oldModels/uncompiled')
 
+    # Set up periodic saving of models
+    # checkpoint = ModelCheckpoint("bestModel/", monitor='accuracy', verbose=1,
+    # save_best_only=True, mode='max')
+
+
     model = keras.models.load_model('/home/anthony/tensorflowEnv/ai_project/TensorFlowExample/oldModels/try4/')
 
     model.summary()
-
-    # Create a TensorBoard instance with the path to the logs directory
-    #log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    #tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=log_dir)
 
     # batchSize = 2
     # #dataGenTrain = DataGenerator(batchSize=batchSize, gamesToRun=numGamesToTrainOn,maxTrainingSteps=maxTrainingStep,trainingScoreMin=trainingScoreThreshold)
@@ -220,22 +215,28 @@ def main():
     # #trainGen = dataGenTrain.getTrainingData()
 
     # model.fit(dataGenTrain,steps_per_epoch=numGamesToTrainOn / batchSize,
-    #             epochs=5, use_multiprocessing=True, workers=2)
+    #             epochs=7, callbacks=[checkpoint], use_multiprocessing=True, workers=2)
 
-    # model.save('oldModels/try4')
+    # model.save('oldModels/try6')
 
     # print("Loading in old model")
     #model = keras.models.load_model('/home/anthony/tensorflowEnv/ai_project/TensorFlowExample/oldModels/slightlyBetterThanRandom/')
 
     #Run the model on a live game
     print("Testing models")
-    testingScores, average = modelPlay(model,20,renderGame=True)
+    testingScores, average = modelPlay(model,100,renderGame=True)
     
-    print("Average score for {0} games: {1}".format(20,average))
+    print("Average score for {0} games: {1}".format(100,average))
     print(testingScores)
 
-    input("Press enter to watch a live game")
-    testingScores = modelPlay(model,renderGame=True)
+    # input("Press enter to watch a live game")
+    # testingScores = modelPlay(model,renderGame=True)
+
+    # with open("scores.csv",'w') as f:
+    #     for score in testingScores:
+    #         f.write("{0},\n".format(score))
+
+    #     f.write("{0},\n".format(average))
     
 
 # Only run code if main called this file
