@@ -8,7 +8,7 @@ import sys
 import datetime
 #from keras.callbacks import TensorBoard
 from gym.envs.classic_control import rendering
-#from keras.callbacks import ModelCheckpoint
+from tensorflow.keras.callbacks import ModelCheckpoint
 from OldAI import OldAi
 
 # Create game
