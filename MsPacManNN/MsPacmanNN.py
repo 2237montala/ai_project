@@ -17,7 +17,7 @@ env = gym.make("MsPacman-v0",frameskip=2)
 #                UP DOWN LEFT RIGHT
 possibleMoves = [2   ,5  ,3   ,4]
 possibleMovesLen = len(possibleMoves)
-numGamesToTrainOn = 1000
+numGamesToTrainOn = 10
 maxTrainingStep = 1000
 trainingScoreThreshold = 250
 
@@ -193,26 +193,26 @@ def modelPlay(model, gamesToPlay=1, renderGame=False):
 
 def main():
     # # Create model
-    # print("Creating model")
-    # model = createNetwork(inputDataSize=(FRAME_X_SIZE,FRAME_Y_SIZE,1), numValidMoves=possibleMovesLen,learningRate=0.1,decayRate=(0.001/2))
+    print("Creating model")
+    model = createNetwork(inputDataSize=(FRAME_X_SIZE,FRAME_Y_SIZE,1), numValidMoves=possibleMovesLen,learningRate=0.1,decayRate=(0.001/2))
 
     # Set up periodic saving of models
     # checkpoint = ModelCheckpoint("bestModel/", monitor='accuracy', verbose=1,
     # save_best_only=True, mode='max')
 
 
-    model = keras.models.load_model('oldModels/try4/')
+    # model = keras.models.load_model('oldModels/try4/')
 
-    model.summary()
+    # model.summary()
 
-    # batchSize = 2
+    batchSize = 2
     # #dataGenTrain = DataGenerator(batchSize=batchSize, gamesToRun=numGamesToTrainOn,maxTrainingSteps=maxTrainingStep,trainingScoreMin=trainingScoreThreshold)
-    # dataGenTrain = DataGenerator(batchSize=batchSize, gamesToRun=numGamesToTrainOn,maxTrainingSteps=maxTrainingStep,trainingScoreMin=600)
+    dataGenTrain = DataGenerator(batchSize=batchSize, gamesToRun=numGamesToTrainOn,maxTrainingSteps=maxTrainingStep,trainingScoreMin=600)
 
     # #trainGen = dataGenTrain.getTrainingData()
 
-    # model.fit(dataGenTrain,steps_per_epoch=numGamesToTrainOn / batchSize,
-    #             epochs=7, callbacks=[checkpoint], use_multiprocessing=True, workers=2)
+    model.fit(dataGenTrain,steps_per_epoch=numGamesToTrainOn / batchSize,
+                 epochs=7, use_multiprocessing=True, workers=2)
 
     # model.save('oldModels/try6')
     
