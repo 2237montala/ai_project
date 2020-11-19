@@ -9,6 +9,7 @@ from gym.envs.classic_control import rendering
 from tensorflow.keras.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 import random as random
+from FrameStack import FrameStack
 
 # More references
 # https://becominghuman.ai/lets-build-an-atari-ai-part-1-dqn-df57e8ff3b26
@@ -24,7 +25,8 @@ possibleMovesLen = len(possibleMoves)
 FRAME_X_SIZE = 170
 FRAME_Y_SIZE = 160
 FRAME_REDUCTION = 2
-INPUT_FRAME_SIZE = (int(FRAME_X_SIZE/FRAME_REDUCTION),int(FRAME_Y_SIZE/FRAME_REDUCTION),1)
+FRAME_STACKING = 4
+INPUT_FRAME_SIZE = (int(FRAME_X_SIZE/FRAME_REDUCTION),int(FRAME_Y_SIZE/FRAME_REDUCTION),FRAME_STACKING)
 
 NUM_EPOCHS = 120 # Changes how many times we run q learning
 NUM_STEPS_PER_EPOCH = 10000 # How many frames will be ran through each epoch
@@ -67,9 +69,6 @@ def createNetwork(inputDataSize,name):
 
     return keras.Model(inputs=inputs,outputs=action,name=name)
 
-def epsilonGreedy(networkModel, state, step):
-    pass
-
 def exploreAction():
     return np.random.choice(possibleMoves)
 
@@ -82,6 +81,7 @@ def getAction(predictions):
     predictionIndex = np.argmax(predictions)
 
     return possibleMoves[predictionIndex]
+
 
 def getBatchGameData(prev_states,prev_actions,next_states,reward_history,done_history, batchSize):
     # Idea came from here
@@ -191,6 +191,10 @@ def qLearn(trainingModel, targetModel):
         epoch_games_played = 1
         old_lives_left = 3
 
+        # Create a queue to hold the last 4 frames of the game
+        stacked_frames = FrameStack(FRAME_STACKING)
+        stacked_state.reset(state)
+
         print("Epoch {0}/{1}".format(epochs_ran+1,NUM_EPOCHS))
 
         for i in range(1,NUM_STEPS_PER_EPOCH):
@@ -198,13 +202,13 @@ def qLearn(trainingModel, targetModel):
 
             # Get action based on epsilion greedy algorithm
             # As we see more frames we will explore less and exploit more
-            epsilonGreedyState = state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1])
+            #epsilonGreedyState = state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1])
 
             global epsilon
             if random.random() < epsilon:
                 action =  exploreAction()
             else:
-                action = exploitAction(trainingModel,epsilonGreedyState)
+                action = exploitAction(trainingModel,stacked_state)
 
             # Learn about it here
             # https://medium.com/analytics-vidhya/the-epsilon-greedy-algorithm-for-reinforcement-learning-5fe6f96dc870
@@ -215,6 +219,14 @@ def qLearn(trainingModel, targetModel):
 
             # Do the action
             state_next,reward,done,lives_left = env.step(action)
+
+            #Processes game frame
+            state_next = preprocessFrame(state_next,FRAME_X_SIZE)
+
+            # Add new state to the stacked frames
+            # Will pop out the oldest frame
+            stacked_state.step(state)
+
             #env.render()
 
             # Reset the enviornment if we lose all lives
@@ -229,9 +241,6 @@ def qLearn(trainingModel, targetModel):
                 # We want to penalize the bot for dying
                 done = True
                 old_lives_left = lives_left['ale.lives']
-
-            #Processes game frame
-            state_next = preprocessFrame(state_next,FRAME_X_SIZE)
 
             # Update the historical lists
             prev_states.append(state)
@@ -248,7 +257,7 @@ def qLearn(trainingModel, targetModel):
             if frame_count % train_model_after_num_actions == 0 and len(reward_history) > BATCH_SIZE:
                 batch_states,batch_actions,batch_next_states,batch_rewards,batch_done = getBatchGameData(prev_states,prev_state_action,next_states,reward_history,done_flags,BATCH_SIZE)
 
-                batch_next_states = batch_next_states.reshape((BATCH_SIZE,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1]))
+                batch_next_states = batch_next_states.reshape((BATCH_SIZE,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
 
                 # Generate all the rewards for the next states
                 possible_rewards = targetModel.predict(batch_next_states)  
@@ -376,42 +385,6 @@ def main():
 
     input("Press enter to see AI play game")
     testingScores, average = modelPlay(target_model,3,renderGame=True)
-
-    # # Set up periodic saving of models
-    # # checkpoint = ModelCheckpoint("bestModel/", monitor='accuracy', verbose=1,
-    # # save_best_only=True, mode='max')
-
-
-    # #model = keras.models.load_model('oldModels/try4/')
-
-    # #model.summary()
-
-    # # batchSize = 2
-    # # #dataGenTrain = DataGenerator(batchSize=batchSize, gamesToRun=numGamesToTrainOn,maxTrainingSteps=maxTrainingStep,trainingScoreMin=trainingScoreThreshold)
-    # # dataGenTrain = DataGenerator(batchSize=batchSize, gamesToRun=numGamesToTrainOn,maxTrainingSteps=maxTrainingStep,trainingScoreMin=600)
-
-    # # #trainGen = dataGenTrain.getTrainingData()
-
-    # # model.fit(dataGenTrain,steps_per_epoch=numGamesToTrainOn / batchSize,
-    # #             epochs=7, callbacks=[checkpoint], use_multiprocessing=True, workers=2)
-
-    # # model.save('oldModels/try6')
-    
-    # #Run the model on a live game
-    # print("Testing models")
-    # testingScores, average = modelPlay(model,1,renderGame=True)
-    
-    # print("Average score for {0} games: {1}".format(100,average))
-    # print(testingScores)
-
-    # # input("Press enter to watch a live game")
-    # # testingScores = modelPlay(model,renderGame=True)
-
-    # # with open("scores.csv",'w') as f:
-    # #     for score in testingScores:
-    # #         f.write("{0},\n".format(score))
-
-    # #     f.write("{0},\n".format(average))
     
 
 # Only run code if main called this file
