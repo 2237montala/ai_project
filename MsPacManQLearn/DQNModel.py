@@ -82,8 +82,6 @@ class DQNModel():
         # Create a once hot array for the actions
         action_mask = tf.one_hot(actions, self.numActions,on_value=1.0,off_value=0.0)
 
-        temp = action_mask.numpy()
-
         # train the model by multiplying the actions by the q values
         self.model.fit(states,action_mask * updated_q_values[:, None],batch_size=batch_size,
                         epochs=1,callbacks=[history],verbose=0)

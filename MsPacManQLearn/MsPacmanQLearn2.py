@@ -34,7 +34,7 @@ FRAME_REDUCTION = 2
 FRAME_STACKING = 4
 INPUT_FRAME_SIZE = (int(FRAME_X_SIZE/FRAME_REDUCTION),int(FRAME_Y_SIZE/FRAME_REDUCTION),FRAME_STACKING)
 
-NUM_EPOCHS = 200 # Changes how many times we run q learning
+NUM_EPOCHS = 300 # Changes how many times we run q learning
 NUM_STEPS_PER_EPOCH = 10000 # How many frames will be ran through each epoch
 BATCH_SIZE = 32   # Number of games per training session
 LEARNING_RATE = 0.00025 
@@ -129,11 +129,11 @@ def qLearn(trainingDQN, targetDQN):
     #Add checkpoint manager for trainingModel
     checkpointTrain = tf.train.Checkpoint(optimizer=trainingDQN.getModel().optimizer, model=trainingDQN.getModel())
     managerTrain = tf.train.CheckpointManager(
-        checkpointTrain, directory="/MsPacManQLearn/checkpoints/training", max_to_keep=5)
+        checkpointTrain, directory="checkpoints/training", max_to_keep=5)
 
     checkpointTarget = tf.train.Checkpoint(optimizer=targetDQN.getModel().optimizer, model=targetDQN.getModel())
     managerTarget = tf.train.CheckpointManager(
-        checkpointTarget, directory="/MsPacManQLearn/checkpoints/target", max_to_keep=5)
+        checkpointTarget, directory="checkpoints/target", max_to_keep=5)
 
     #Create a file to hold stats about training
     f = open('trainingStatsData.csv','w')
@@ -217,6 +217,9 @@ def qLearn(trainingDQN, targetDQN):
                 done = True
                 old_lives_left = lives_left['ale.lives']
 
+            # Save Score before clipping
+            epoch_reward += reward
+
             # Reward cliping
             # Deepmind talks about this in there paper
             # Helps the bot understand death
@@ -228,7 +231,7 @@ def qLearn(trainingDQN, targetDQN):
             next_states.append(stacked_state_next)
             reward_history.append(reward)
             done_flags.append(done)
-            epoch_reward += reward
+            
 
             # Update the current state
             stacked_state = stacked_state_next      
@@ -298,8 +301,8 @@ def main():
 
     qLearn(trainingDQN=train_model,targetDQN=target_model)
 
-    train_model.getModel().save('/MsPacManQLearn/savedModels/firstTry/train')
-    target_model.getModel().save('/MsPacManQLearn/savedModels/firstTry/target')
+    train_model.getModel().save('savedModels/firstTry/train')
+    target_model.getModel().save('savedModels/firstTry/target')
     
     # print("Testing models")
     # testingScores, average = modelPlay(target_model,100,renderGame=False)
@@ -316,7 +319,7 @@ def main():
 # Only run code if main called this file
 if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    #os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     print(tf.__version__)
     print(tf.config.list_physical_devices('GPU'))
 
