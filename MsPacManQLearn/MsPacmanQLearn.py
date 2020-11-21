@@ -18,9 +18,11 @@ from FrameStack import FrameStack
 # Create game
 env = gym.make("MsPacman-v0",frameskip=4)
 
-#                UP DOWN LEFT RIGHT
-possibleMoves = [2   ,5  ,3   ,4]
+
+#possibleMoves = [2,3,4,5]
+possibleMoves = [0,1,2,3,4,5,6,7,8]
 possibleMovesLen = len(possibleMoves)
+
 
 FRAME_X_SIZE = 170
 FRAME_Y_SIZE = 160
@@ -28,17 +30,19 @@ FRAME_REDUCTION = 2
 FRAME_STACKING = 4
 INPUT_FRAME_SIZE = (int(FRAME_X_SIZE/FRAME_REDUCTION),int(FRAME_Y_SIZE/FRAME_REDUCTION),FRAME_STACKING)
 
-NUM_EPOCHS = 120 # Changes how many times we run q learning
-NUM_STEPS_PER_EPOCH = 10000 # How many frames will be ran through each epoch
+NUM_EPOCHS = 10 # Changes how many times we run q learning
+NUM_STEPS_PER_EPOCH = 2000 # How many frames will be ran through each epoch
 BATCH_SIZE = 32   # Number of games per training session
 LEARNING_RATE = 0.001 
 DISCOUNT_FACTOR = 0.99 # How much the current state reward is reduced by
 
-epsilon = 1.0  # Current epsilon values
+epsilon = 0.05  # Current epsilon values
 eps_min = 0.05  
 eps_max = 1.0
-eps_decay_steps = 1000000.0 # this value specifies how many frame we need to see before
+eps_decay_steps = 100000#1000000.0 # this value specifies how many frame we need to see before
                             # we switch from explore to exploit
+
+
 
 def preprocessFrame(frameIn, sizeX):
     # Make array into numpy array
@@ -73,8 +77,8 @@ def exploreAction():
     return np.random.choice(possibleMoves)
 
 def exploitAction(networkModel, state):
-    return getAction(networkModel.predict(state))
-    #return np.argmax(networkModel(state,training=False))
+    #return getAction(networkModel.predict(state))
+    return np.argmax(networkModel(state,training=False))
 
 def getAction(predictions):
     # From the prediction get the best move
@@ -99,38 +103,43 @@ def getBatchGameData(prev_states,prev_actions,next_states,reward_history,done_hi
 
     return batch_prev_state,batch_prev_state_action,batch_next_states,batch_reward,batch_done_flags
 
-def modelPlay(model, gamesToPlay=1,framesToAct=1, renderGame=False):
+def modelPlay(model, gamesToPlay=1, renderGame=False):
     scores = []
-    for i in range(gamesToPlay):
-        #print("Game {0}".format(i+1))
-        observation = env.reset()
-        done = False
+    for _ in range(gamesToPlay):
+        # Create frame stacking
+        stacked_frames = FrameStack(FRAME_STACKING)
+        state = env.reset()
 
+        stacked_state = stacked_frames.reset(preprocessFrame(state,FRAME_X_SIZE))
+
+        done = False
         score = 0
         frame_count = 0
         action = 0
         while not done:
             frame_count +=1
+            
+            #Get new state, reward, and if we are done
+            # if frame_count % FRAME_STACKING == 0:
+            #     temp = stacked_state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2])
+            #     action = exploitAction(model,temp)
+
+            temp = stacked_state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2])
+            action = exploitAction(model,temp)
+
+            state_single,reward,done,_ = env.step(action)
+            stacked_state = stacked_frames.step(preprocessFrame(state_single,FRAME_X_SIZE))
+
             if renderGame:
                 env.render()
 
-            #Get new state, reward, and if we are done
-            if frame_count % framesToAct == 0:
-                state = preprocessFrame(observation,FRAME_X_SIZE)
-                state = state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1])
-
-                #action = np.argmax(model.predict(state))
-                action = getAction(model.predict(state))
-
-            observation,reward,done,_ = env.step(action)
-            
             score += reward
 
         scores.append(score)
     return scores,np.average(scores)
 
 def modelPlaySetOfGames(model, gamesToPlay=1,framesToAct=1, renderGame=False):
-    _, average = modelPlay(model,gamesToPlay,framesToAct=framesToAct,renderGame=renderGame)
+    _, average = modelPlay(model=model,gamesToPlay=gamesToPlay,renderGame=renderGame)
     return average
 
 def qLearn(trainingModel, targetModel):
@@ -149,18 +158,18 @@ def qLearn(trainingModel, targetModel):
     loss_func = keras.losses.Huber()
 
     # Add checkpoint manager for trainingModel
-    checkpointTrain = tf.train.Checkpoint(optimizer=optimizer, model=trainingModel)
+    checkpointTrain = tf.train.Checkpoint(optimizer=optimizer, model=train_model)
     managerTrain = tf.train.CheckpointManager(
         checkpointTrain, directory="./MsPacManQLearn/checkpoints/training", max_to_keep=5)
 
-    checkpointTarget = tf.train.Checkpoint(optimizer=optimizer, model=targetModel)
+    checkpointTarget = tf.train.Checkpoint(optimizer=optimizer, model=train_model)
     managerTarget = tf.train.CheckpointManager(
         checkpointTarget, directory="./MsPacManQLearn/checkpoints/target", max_to_keep=5)
 
     #Create a file to hold stats about training
-    f = open('./MsPacManQLearn/trainingStatsData.csv','w')
-    f.write('Epoch, AI Game Avg Score, Loss,Epsilon,Training Ai Score\n')
-    f.close()
+    # f = open('./MsPacManQLearn/trainingStatsData.csv','w')
+    # f.write('Epoch, AI Game Avg Score, Loss,Epsilon,Training Ai Score\n')
+    # f.close()
 
     # Set up q learning historical buffers
     prev_states = []
@@ -183,9 +192,6 @@ def qLearn(trainingModel, targetModel):
         #https://www.tensorflow.org/api_docs/python/tf/keras/utils/Progbar
         prog_bar = tf.keras.utils.Progbar(NUM_STEPS_PER_EPOCH, width=30, verbose=1, interval=1.0, stateful_metrics=None, unit_name='step')
 
-        state = env.reset()
-        state = preprocessFrame(state,FRAME_X_SIZE)
-
         loss_history = []
         epoch_reward = 0
         epoch_games_played = 1
@@ -193,7 +199,7 @@ def qLearn(trainingModel, targetModel):
 
         # Create a queue to hold the last 4 frames of the game
         stacked_frames = FrameStack(FRAME_STACKING)
-        stacked_state.reset(state)
+        stacked_state = stacked_frames.reset(preprocessFrame(env.reset(),FRAME_X_SIZE))
 
         print("Epoch {0}/{1}".format(epochs_ran+1,NUM_EPOCHS))
 
@@ -202,13 +208,17 @@ def qLearn(trainingModel, targetModel):
 
             # Get action based on epsilion greedy algorithm
             # As we see more frames we will explore less and exploit more
-            #epsilonGreedyState = state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1])
+            epsilonGreedyState = stacked_state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2])
+            
 
             global epsilon
-            if random.random() < epsilon:
-                action =  exploreAction()
-            else:
-                action = exploitAction(trainingModel,stacked_state)
+            # if epsilon > random.random():
+            #     action =  exploreAction()
+            # else:
+            #     action = exploitAction(trainingModel,epsilonGreedyState)
+            action = exploitAction(train_model,epsilonGreedyState)
+            action = np.argmax(train_model(epsilonGreedyState,training=False))
+                #print(action)
 
             # Learn about it here
             # https://medium.com/analytics-vidhya/the-epsilon-greedy-algorithm-for-reinforcement-learning-5fe6f96dc870
@@ -218,16 +228,16 @@ def qLearn(trainingModel, targetModel):
             epsilon = max(eps_min, epsilon) # Decaying policy with more steps
 
             # Do the action
-            state_next,reward,done,lives_left = env.step(action)
+            state_next_single,reward,done,lives_left = env.step(action)
 
-            #Processes game frame
-            state_next = preprocessFrame(state_next,FRAME_X_SIZE)
+            
 
+            # Processes game frame
             # Add new state to the stacked frames
             # Will pop out the oldest frame
-            stacked_state.step(state)
+            stacked_state_next = stacked_frames.step(preprocessFrame(state_next_single,FRAME_X_SIZE))
 
-            #env.render()
+            env.render()
 
             # Reset the enviornment if we lose all lives
             # Otherwise the game stays in this position for the remainder of the epoch
@@ -235,6 +245,7 @@ def qLearn(trainingModel, targetModel):
             # would stay in the same position, wonder why...
             if done == True:
                 env.reset()
+                #stacked_state = stacked_frames.reset(preprocessFrame(env.reset()[0],FRAME_X_SIZE))
                 epoch_games_played+=1
                 old_lives_left = 3
             elif lives_left['ale.lives'] != old_lives_left:
@@ -243,24 +254,31 @@ def qLearn(trainingModel, targetModel):
                 old_lives_left = lives_left['ale.lives']
 
             # Update the historical lists
-            prev_states.append(state)
+            prev_states.append(stacked_state)
             prev_state_action.append(action)
-            next_states.append(state_next)
+            next_states.append(stacked_state_next)
             reward_history.append(reward)
             done_flags.append(done)
             epoch_reward += reward
 
             # Update the current state
-            state = state_next          
+            stacked_state = stacked_state_next          
 
             # Train the training model if we moved enough times
             if frame_count % train_model_after_num_actions == 0 and len(reward_history) > BATCH_SIZE:
+
                 batch_states,batch_actions,batch_next_states,batch_rewards,batch_done = getBatchGameData(prev_states,prev_state_action,next_states,reward_history,done_flags,BATCH_SIZE)
 
-                batch_next_states = batch_next_states.reshape((BATCH_SIZE,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
+                # print('\n')
+                # print(np.average(batch_states))
+                # print(np.average(batch_next_states))
+
+                #print(np.equal(batch_states,batch_next_states))
+
+                #batch_next_states = batch_next_states.reshape((BATCH_SIZE,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
 
                 # Generate all the rewards for the next states
-                possible_rewards = targetModel.predict(batch_next_states)  
+                possible_rewards = target_model.predict(batch_next_states)   
 
                 # Set a any terminal states to 0
                 possible_rewards[batch_done] = -1
@@ -316,10 +334,10 @@ def qLearn(trainingModel, targetModel):
             if frame_count % update_target_model_after_num_epochs == 0:
                 # trainingModel.save('tmp_model')
                 # targetModel = keras.models.load_model('tmp_model')
-                temp = trainingModel.get_weights()
-                temp2 = targetModel.get_weights()
-                targetModel.set_weights(trainingModel.get_weights())
-                temp2 = targetModel.get_weights()
+                #temp = trainingModel.get_weights()
+                #temp2 = targetModel.get_weights()
+                target_model.set_weights(train_model.get_weights())
+                #temp2 = targetModel.get_weights()
 
             # Clear out ram for the buffer if we reach max length
             if len(reward_history) > num_states_in_history:
@@ -337,12 +355,46 @@ def qLearn(trainingModel, targetModel):
         prog_bar.update(i+1,values=[('loss',loss)],finalize=True)
 
         # Save model after each epoch
-        managerTarget.save()
-        managerTrain.save()
+        #managerTarget.save()
+        #managerTrain.save()
 
         # Run test games to check progress
         numGameToRun = 3
-        gameAverage = modelPlaySetOfGames(targetModel,numGameToRun,train_model_after_num_actions,renderGame=False)
+        #_,gameAverage = modelPlay(model=trainingModel,gamesToPlay=numGameToRun,renderGame=True)
+
+        scores = []
+        for _ in range(numGameToRun):
+            # Create frame stacking
+            stacked_frames = FrameStack(FRAME_STACKING)
+            stacked_state = stacked_frames.reset(preprocessFrame(env.reset(),FRAME_X_SIZE))
+
+            done = False
+            score = 0
+            frame_count = 0
+            action = 0
+            while not done:
+                frame_count +=1
+                
+                #Get new state, reward, and if we are done
+                # if frame_count % FRAME_STACKING == 0:
+                #     temp = stacked_state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2])
+                #     action = exploitAction(model,temp)
+
+                temp = stacked_state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2])
+                #action = exploitAction(trainingModel,temp)
+                action = np.argmax(train_model(temp,training=False))
+
+                state_next_single,reward2,done,lives_left = env.step(action)
+                stacked_state = stacked_frames.step(preprocessFrame(state_next_single,FRAME_X_SIZE))
+
+                env.render()
+
+                score += reward2
+
+            scores.append(score)
+
+
+
         print("{0} game average: {1:0.2f}".format(numGameToRun,gameAverage))
         print("Epsilon: {:0.5f}".format(epsilon))
         print("Epoch reward {:0.0f}".format(epoch_reward/epoch_games_played))
@@ -350,9 +402,9 @@ def qLearn(trainingModel, targetModel):
         loss_avg = np.average(loss_history)
 
         # Save data for a graph
-        f = open('./MsPacManQLearn/trainingStatsData.csv','a')
-        f.write('{0},{1},{2},{3},{4}\n'.format(epochs_ran,gameAverage,loss_avg,epsilon,epoch_reward))
-        f.close()
+        # f = open('./MsPacManQLearn/trainingStatsData.csv','a')
+        # f.write('{0},{1},{2},{3},{4}\n'.format(epochs_ran,gameAverage,loss_avg,epsilon,epoch_reward))
+        # f.close()
 
         # Need to come up with break condition
         epochs_ran += 1
@@ -360,14 +412,16 @@ def qLearn(trainingModel, targetModel):
             trained = True
            
 
-        
+        # Create training model
+train_model = createNetwork(inputDataSize=INPUT_FRAME_SIZE,name="Train")
+
+# Create target model
+target_model = createNetwork(inputDataSize=INPUT_FRAME_SIZE,name="Target")
 
 def main():
-    # Create training model
-    train_model = createNetwork(inputDataSize=INPUT_FRAME_SIZE,name="Train")
+    
 
-    # Create target model
-    target_model = createNetwork(inputDataSize=INPUT_FRAME_SIZE,name="Target")
+    target_model.set_weights(train_model.get_weights())
 
     train_model.summary()
 
@@ -377,7 +431,7 @@ def main():
     target_model.save('./MsPacManQLearn/savedModels/firstTry/target')
     
     print("Testing models")
-    testingScores, average = modelPlay(target_model,100,4,renderGame=False)
+    testingScores, average = modelPlay(target_model,100,renderGame=False)
 
     print("Average score for {0} games: {1}".format(100,average))
     print("Scores for all games")

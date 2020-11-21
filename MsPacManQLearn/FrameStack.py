@@ -14,13 +14,15 @@ class FrameStack():
         for _ in range(self.numStackedFrames):
             self.frames.append(frame)
 
-        return np.stack(self.frames, axis=2)
+        #return np.stack(self.frames, axis=2)
+        return np.array(self.frames)
     
     def step(self,frame):
         self.frames.append(frame)
 
         # Return the current state and the list of states
-        return np.stack(self.frames, axis=2),np.array(self.frames)
+        #return np.stack(self.frames, axis=2)
+        return np.array(self.frames)
 
 
 
