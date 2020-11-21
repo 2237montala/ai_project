@@ -13,19 +13,22 @@ class DQNModel():
 
     def createModel(self,inputDataSize,numActions,lr,name):
 
+        # Create a special weight inializer
+        initalizer = tf.keras.initializers.VarianceScaling(scale=2.0)
+
         self.inputSize = inputDataSize
         self.numActions = numActions
 
         inputs = layers.Input(shape=(85, 80, 4,))
 
         # Convolutions on the frames on the screen
-        layer1 = layers.Conv2D(32, 8, strides=4, activation="relu")(inputs)
-        layer2 = layers.Conv2D(64, 4, strides=2, activation="relu")(layer1)
-        layer3 = layers.Conv2D(64, 3, strides=1, activation="relu")(layer2)
+        layer1 = layers.Conv2D(32, 8, strides=4, activation="relu",kernel_initializer=initalizer)(inputs)
+        layer2 = layers.Conv2D(64, 4, strides=2, activation="relu",kernel_initializer=initalizer)(layer1)
+        layer3 = layers.Conv2D(64, 3, strides=1, activation="relu",kernel_initializer=initalizer)(layer2)
 
         layer4 = layers.Flatten()(layer3)
 
-        layer5 = layers.Dense(128, activation="relu")(layer4)
+        layer5 = layers.Dense(128, activation="relu",kernel_initializer=initalizer)(layer4)
         action = layers.Dense(numActions, activation="linear")(layer5)
 
         self.model = keras.models.Model(inputs=inputs, outputs=action, name=name)
@@ -78,6 +81,8 @@ class DQNModel():
 
         # Create a once hot array for the actions
         action_mask = tf.one_hot(actions, self.numActions,on_value=1.0,off_value=0.0)
+
+        temp = action_mask.numpy()
 
         # train the model by multiplying the actions by the q values
         self.model.fit(states,action_mask * updated_q_values[:, None],batch_size=batch_size,
