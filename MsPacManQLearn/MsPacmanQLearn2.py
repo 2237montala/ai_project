@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import random as random
 from FrameStack import FrameStack
 from DQNModel import DQNModel
+import time
 #from gym.wrappers import FrameStack
 
 
@@ -33,14 +34,13 @@ FRAME_REDUCTION = 2
 FRAME_STACKING = 4
 INPUT_FRAME_SIZE = (int(FRAME_X_SIZE/FRAME_REDUCTION),int(FRAME_Y_SIZE/FRAME_REDUCTION),FRAME_STACKING)
 
-NUM_EPOCHS = 20 # Changes how many times we run q learning
+NUM_EPOCHS = 2 # Changes how many times we run q learning
 NUM_STEPS_PER_EPOCH = 10000 # How many frames will be ran through each epoch
 BATCH_SIZE = 32   # Number of games per training session
 LEARNING_RATE = 0.001 
 DISCOUNT_FACTOR = 0.99 # How much the current state reward is reduced by
 
-epsilon = 1.0 # Current epsilon values
-eps_min = 0.1 #0.05
+eps_min = 0.5 #0.05
 eps_max = 1.0
 eps_decay_steps = 100000#1000000.0 # this value specifies how many frame we need to see before
                             # we switch from explore to exploit
@@ -106,7 +106,7 @@ def modelPlay(DQNModel, gamesToPlay=1, renderGame=False):
             
             #Get new state, reward, and if we are done
             if frame_count % FRAME_STACKING == 0:
-                temp = stacked_state.reshape((1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
+                temp = stacked_state.reshape((INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
                 action = DQNModel.exploitAction(temp)
 
             state_single,reward,done,_ = env.step(action)
@@ -114,6 +114,7 @@ def modelPlay(DQNModel, gamesToPlay=1, renderGame=False):
 
             if renderGame:
                 env.render()
+                time.sleep(0.033)
 
             score += reward
 
@@ -146,6 +147,7 @@ def qLearn(trainingDQN, targetDQN):
     reward_history = []
     done_flags = []
     num_states_in_history = 200000
+    epsilon_random_frames = 50000
     train_model_after_num_actions = 4
     update_target_model_after_num_epochs = 10000
     
@@ -153,6 +155,8 @@ def qLearn(trainingDQN, targetDQN):
     frame_count = 0 # Number of frames seen
     epochs_ran = 0
     loss = 0
+
+    epsilon = 1.0
 
     trained = False
     while not trained:
@@ -183,8 +187,7 @@ def qLearn(trainingDQN, targetDQN):
             #epsilonGreedyState = stacked_state.reshape((1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
             #epsilonGreedyState = stacked_state.reshape(1,stacked_state.shape[0],stacked_state.shape[1],stacked_state.shape[2])
 
-            global epsilon
-            if epsilon > random.random():
+            if frame_count < epsilon_random_frames or epsilon > random.random():
                 action =  trainingDQN.exploreAction()
             else:
                 action = trainingDQN.exploitAction(stacked_state)
@@ -359,7 +362,7 @@ def main():
 # Only run code if main called this file
 if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    #os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     print(tf.__version__)
     print(tf.config.list_physical_devices('GPU'))
     main()

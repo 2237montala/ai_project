@@ -38,7 +38,7 @@ class DQNModel():
         # # Set up loss function
         # loss_func = keras.losses.MeanSquaredError(reduction="auto", name="mean_squared_error")
         # https://openai.com/blog/openai-baselines-dqn/
-        self.model.compile(optimizer, loss='huber')
+        self.model.compile(optimizer, loss='huber_loss')
 
     def setWeights(self, modelToCopyFrom):
         self.model.set_weights(modelToCopyFrom.get_weights())
