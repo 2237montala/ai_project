@@ -51,6 +51,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from OpenAiWrappers import wrap_deepmind
 import gym
+import os
 
 # Configuration paramaters for the whole setup
 seed = 42
@@ -81,6 +82,10 @@ is chosen by selecting the larger of the four Q-values predicted in the output l
 """
 
 num_actions = 9
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
+
+print(tf.__version__)
+print(tf.config.list_physical_devices('GPU'))
 
 
 def create_q_model():
@@ -140,9 +145,9 @@ update_target_network = 10000
 # Using huber loss for stability
 loss_function = keras.losses.Huber()
 
-checkpointTarget = tf.train.Checkpoint(optimizer=model_target.optimizer, model=model_target)
+checkpointTarget = tf.train.Checkpoint(optimizer=optimizer, model=model_target)
 managerTarget = tf.train.CheckpointManager(
-    checkpointTarget, directory="checkpoints/deepmind/target", max_to_keep=2)
+    checkpointTarget, directory="checkpoints/deepmind/target", max_to_keep=5)
 
 
 while True:  # Run until solved
@@ -256,12 +261,11 @@ while True:  # Run until solved
 
     episode_count += 1
 
-    if episode_count > 300:
-        break
+    if episode_count == 300:
+        # Save 300 epoch models
+        model.save('savedModels/deepmind/train')
+        model_target.save('savedModels/deepmind/target')
 
-# Save the models
-model.save('savedModels/deepmind/train')
-model_target.save('savedModels/deepmind/target')
 
 
 
