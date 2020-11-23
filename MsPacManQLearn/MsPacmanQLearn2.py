@@ -12,15 +12,12 @@ import random as random
 from FrameStack import FrameStack
 from DQNModel import DQNModel
 import time
-#from gym.wrappers import FrameStack
-
 
 # More references
 # https://becominghuman.ai/lets-build-an-atari-ai-part-1-dqn-df57e8ff3b26
 # https://becominghuman.ai/beat-atari-with-deep-reinforcement-learning-part-2-dqn-improvements-d3563f665a2c
 
 # Create game
-#env = gym.make("MsPacmanNoFrameskip-v0")
 env = gym.make("MsPacman-v0")
 
 #possibleMoves = [2,3,4,5]
@@ -94,7 +91,6 @@ def modelPlay(DQNModel, gamesToPlay=1, renderGame=False):
     for _ in range(gamesToPlay):
         # Create frame stacking
         stacked_frames = FrameStack(FRAME_STACKING)
-
         stacked_state = stacked_frames.reset(preprocessFrame(env.reset(),FRAME_X_SIZE))
 
         done = False
@@ -106,7 +102,7 @@ def modelPlay(DQNModel, gamesToPlay=1, renderGame=False):
             
             #Get new state, reward, and if we are done
             if frame_count % FRAME_STACKING == 0:
-                temp = stacked_state.reshape((INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
+                temp = stacked_state.reshape((1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
                 action = DQNModel.exploitAction(temp)
 
             state_single,reward,done,_ = env.step(action)
@@ -172,7 +168,7 @@ def qLearn(trainingDQN, targetDQN):
         # Create a queue to hold the last 4 frames of the game
         stacked_frames = FrameStack(FRAME_STACKING)
         stacked_state = stacked_frames.reset(preprocessFrame(env.reset(),FRAME_X_SIZE))
-        stacked_state = stacked_state.reshape((INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
+        stacked_state = stacked_state.reshape((1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
 
         print("Epoch {0}/{1}".format(epochs_ran+1,NUM_EPOCHS))
 
@@ -200,7 +196,7 @@ def qLearn(trainingDQN, targetDQN):
             # Add new state to the stacked frames
             # Will pop out the oldest frame
             stacked_state_next = stacked_frames.step(preprocessFrame(state_next_single,FRAME_X_SIZE))
-            stacked_state_next = stacked_state_next.reshape((INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
+            stacked_state_next = stacked_state_next.reshape((1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
 
             #env.render()
 

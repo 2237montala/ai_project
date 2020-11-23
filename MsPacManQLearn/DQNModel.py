@@ -54,13 +54,14 @@ class DQNModel():
 
     def exploitAction(self, state):
         
-        state_tensor = tf.convert_to_tensor(state)
-        state_tensor = tf.expand_dims(state_tensor, 0)
-        action_probs = self.model(state_tensor, training=False)
+        # state_tensor = tf.convert_to_tensor(state)
+        # state_tensor = tf.expand_dims(state_tensor, 0)
+        # action_probs = self.model(state_tensor, training=False)
 
-        return tf.argmax(action_probs[0]).numpy()
-        # predictions = self.model.predict(state)
-        # return np.argmax(self.model(state,training=False))
+        # return tf.argmax(action_probs[0]).numpy()
+        predictions = self.model.predict(state)
+        return np.argmax(predictions)
+        #return np.argmax(self.model(state,training=False))
 
     def fit(self,target_model,dcf,states,actions,rewards,next_states,done,batch_size):
         history = History()
@@ -81,8 +82,6 @@ class DQNModel():
 
         # Create a once hot array for the actions
         action_mask = tf.one_hot(actions, self.numActions,on_value=1.0,off_value=0.0)
-
-        temp = action_mask.numpy()
 
         # train the model by multiplying the actions by the q values
         self.model.fit(states,action_mask * updated_q_values[:, None],batch_size=batch_size,
