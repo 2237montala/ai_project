@@ -37,7 +37,7 @@ FRAME_REDUCTION = 2
 FRAME_STACKING = 4
 INPUT_FRAME_SIZE = (84,84,4)
 
-NUM_EPOCHS = 20 # Changes how many times we run q learning
+NUM_EPOCHS = 150 # Changes how many times we run q learning
 NUM_STEPS_PER_EPOCH = 10000 # How many frames will be ran through each epoch
 BATCH_SIZE = 32   # Number of games per training session
 LEARNING_RATE = 0.00025 
@@ -113,7 +113,7 @@ def modelPlay(DQNModel, gamesToPlay=1, renderGame=False):
 
             if renderGame:
                 env.render()
-                #time.sleep(0.033)
+                time.sleep(0.016)
 
             score += reward
 
@@ -126,18 +126,18 @@ def modelPlaySetOfGames(DQNModel, gamesToPlay=1,framesToAct=1, renderGame=False)
 
 def qLearn(trainingDQN, targetDQN):
     #Add checkpoint manager for trainingModel
-    # checkpointTrain = tf.train.Checkpoint(optimizer=trainingDQN.getModel().optimizer, model=trainingDQN.getModel())
-    # managerTrain = tf.train.CheckpointManager(
-    #     checkpointTrain, directory="/MsPacManQLearn/checkpoints/training", max_to_keep=5)
+    checkpointTrain = tf.train.Checkpoint(optimizer=trainingDQN.getModel().optimizer, model=trainingDQN.getModel())
+    managerTrain = tf.train.CheckpointManager(
+        checkpointTrain, directory="checkpoints/training", max_to_keep=5)
 
-    # checkpointTarget = tf.train.Checkpoint(optimizer=targetDQN.getModel().optimizer, model=targetDQN.getModel())
-    # managerTarget = tf.train.CheckpointManager(
-    #     checkpointTarget, directory="/MsPacManQLearn/checkpoints/target", max_to_keep=5)
+    checkpointTarget = tf.train.Checkpoint(optimizer=targetDQN.getModel().optimizer, model=targetDQN.getModel())
+    managerTarget = tf.train.CheckpointManager(
+        checkpointTarget, directory="checkpoints/target", max_to_keep=5)
 
     #Create a file to hold stats about training
-    # f = open('trainingStatsData.csv','w')
-    # f.write('Epoch, Loss,Epsilon,Training Ai Score\n')
-    # f.close()
+    f = open('trainingStatsData.csv','w')
+    f.write('Epoch, Loss,Epsilon,Training Ai Score\n')
+    f.close()
 
     # Set up q learning historical buffers
     prev_states = []
@@ -145,7 +145,7 @@ def qLearn(trainingDQN, targetDQN):
     next_states = []
     reward_history = []
     done_flags = []
-    num_states_in_history = 200000
+    num_states_in_history = 100000
     epsilon_random_frames = 50000
     train_model_after_num_actions = 4
     update_target_model_after_num_frames = 10000
@@ -258,8 +258,8 @@ def qLearn(trainingDQN, targetDQN):
         prog_bar.update(i+1,values=[('loss',loss)],finalize=True)
 
         # Save model after each epoch
-        # managerTarget.save()
-        # managerTrain.save()
+        managerTarget.save()
+        managerTrain.save()
 
         print("Epsilon: {:0.4f}".format(epsilon))
         print("Epoch reward {:0.0f}".format(epoch_reward/epoch_games_played))
@@ -267,9 +267,9 @@ def qLearn(trainingDQN, targetDQN):
         loss_avg = np.average(loss_history)
 
         # Save data for a graph
-        # f = open('trainingStatsData.csv','a')
-        # f.write('{0},{1},{2},{3}\n'.format(epochs_ran,loss_avg,epsilon,epoch_reward))
-        # f.close()
+        f = open('trainingStatsData.csv','a')
+        f.write('{0},{1},{2},{3}\n'.format(epochs_ran,loss_avg,epsilon,epoch_reward))
+        f.close()
 
         # Need to come up with break condition
         epochs_ran += 1
@@ -290,8 +290,8 @@ def main():
 
     qLearn(trainingDQN=train_model,targetDQN=target_model)
 
-    train_model.getModel().save('/MsPacManQLearn/savedModels/firstTry/train')
-    target_model.getModel().save('/MsPacManQLearn/savedModels/firstTry/target')
+    train_model.getModel().save('savedModels/firstTry/train')
+    target_model.getModel().save('savedModels/firstTry/target')
     
     # print("Testing models")
     # testingScores, average = modelPlay(target_model,100,renderGame=False)
@@ -308,7 +308,7 @@ def main():
 # Only run code if main called this file
 if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    #os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     print(tf.__version__)
     print(tf.config.list_physical_devices('GPU'))
 
