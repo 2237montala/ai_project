@@ -54,13 +54,14 @@ class DQNModel():
 
     def exploitAction(self, state):
         
-        state_tensor = tf.convert_to_tensor(state)
-        state_tensor = tf.expand_dims(state_tensor, 0)
-        action_probs = self.model(state_tensor, training=False)
+        # state_tensor = tf.convert_to_tensor(state)
+        # state_tensor = tf.expand_dims(state_tensor, 0)
+        # action_probs = self.model(state_tensor, training=False)
 
-        return tf.argmax(action_probs[0]).numpy()
-        # predictions = self.model.predict(state)
-        # return np.argmax(self.model(state,training=False))
+        # return tf.argmax(action_probs[0]).numpy()
+        predictions = self.model.predict(state)
+        return np.argmax(predictions)
+        #return np.argmax(self.model(state,training=False))
 
     def fit(self,target_model,dcf,states,actions,rewards,next_states,done,batch_size):
         history = History()
