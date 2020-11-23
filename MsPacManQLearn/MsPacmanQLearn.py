@@ -10,14 +10,15 @@ from tensorflow.keras.callbacks import ModelCheckpoint
 import matplotlib.pyplot as plt
 import random as random
 from FrameStack import FrameStack
+from DQNModel import DQNModel
+import time
 
 # More references
 # https://becominghuman.ai/lets-build-an-atari-ai-part-1-dqn-df57e8ff3b26
 # https://becominghuman.ai/beat-atari-with-deep-reinforcement-learning-part-2-dqn-improvements-d3563f665a2c
 
 # Create game
-env = gym.make("MsPacman-v0",frameskip=4)
-
+env = gym.make("MsPacmanNoFrameskip-v0")
 
 #possibleMoves = [2,3,4,5]
 possibleMoves = [0,1,2,3,4,5,6,7,8]
@@ -30,16 +31,16 @@ FRAME_REDUCTION = 2
 FRAME_STACKING = 4
 INPUT_FRAME_SIZE = (int(FRAME_X_SIZE/FRAME_REDUCTION),int(FRAME_Y_SIZE/FRAME_REDUCTION),FRAME_STACKING)
 
-NUM_EPOCHS = 10 # Changes how many times we run q learning
-NUM_STEPS_PER_EPOCH = 2000 # How many frames will be ran through each epoch
+# NUM_EPOCHS = 300 # Changes how many times we run q learning
+# FRAME_COUNT_MAX = 3000000
+NUM_STEPS_PER_EPOCH = 10000 # How many frames will be ran through each epoch
 BATCH_SIZE = 32   # Number of games per training session
-LEARNING_RATE = 0.001 
+LEARNING_RATE = 0.00025 
 DISCOUNT_FACTOR = 0.99 # How much the current state reward is reduced by
 
-epsilon = 0.05  # Current epsilon values
-eps_min = 0.05  
+eps_min = 0.1 #0.05
 eps_max = 1.0
-eps_decay_steps = 100000#1000000.0 # this value specifies how many frame we need to see before
+eps_decay_steps = 1000000.0 # this value specifies how many frame we need to see before
                             # we switch from explore to exploit
 
 
@@ -60,25 +61,6 @@ def preprocessFrame(frameIn, sizeX):
 
     # Return and turn values to 1 byte values to save space
     return grayFrame.astype(np.uint8)
-
-def createNetwork(inputDataSize,name):
-
-    inputs = layers.Input(shape=inputDataSize)
-    layer1 = layers.Conv2D(32,(8,8),4, activation='relu')(inputs)
-    layer2 = layers.Conv2D(64,(4,4),2, activation='relu')(layer1)
-    layer3 = layers.Conv2D(64,(3,3),1, activation='relu')(layer2)
-    layer4 = layers.Flatten()(layer3)
-    layer5 = layers.Dense(128, activation='relu')(layer4)
-    action = layers.Dense(possibleMovesLen, activation='linear')(layer5)
-
-    return keras.Model(inputs=inputs,outputs=action,name=name)
-
-def exploreAction():
-    return np.random.choice(possibleMoves)
-
-def exploitAction(networkModel, state):
-    #return getAction(networkModel.predict(state))
-    return np.argmax(networkModel(state,training=False))
 
 def getAction(predictions):
     # From the prediction get the best move
@@ -103,14 +85,12 @@ def getBatchGameData(prev_states,prev_actions,next_states,reward_history,done_hi
 
     return batch_prev_state,batch_prev_state_action,batch_next_states,batch_reward,batch_done_flags
 
-def modelPlay(model, gamesToPlay=1, renderGame=False):
+def modelPlay(DQNModel, gamesToPlay=1, renderGame=False):
     scores = []
     for _ in range(gamesToPlay):
         # Create frame stacking
         stacked_frames = FrameStack(FRAME_STACKING)
-        state = env.reset()
-
-        stacked_state = stacked_frames.reset(preprocessFrame(state,FRAME_X_SIZE))
+        stacked_state = stacked_frames.reset(preprocessFrame(env.reset(),FRAME_X_SIZE))
 
         done = False
         score = 0
@@ -120,56 +100,40 @@ def modelPlay(model, gamesToPlay=1, renderGame=False):
             frame_count +=1
             
             #Get new state, reward, and if we are done
-            # if frame_count % FRAME_STACKING == 0:
-            #     temp = stacked_state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2])
-            #     action = exploitAction(model,temp)
-
-            temp = stacked_state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2])
-            action = exploitAction(model,temp)
+            if frame_count % FRAME_STACKING == 0:
+                temp = stacked_state.reshape((1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
+                action = DQNModel.exploitAction(temp)
 
             state_single,reward,done,_ = env.step(action)
             stacked_state = stacked_frames.step(preprocessFrame(state_single,FRAME_X_SIZE))
 
             if renderGame:
                 env.render()
+                time.sleep(0.033)
 
             score += reward
 
         scores.append(score)
     return scores,np.average(scores)
 
-def modelPlaySetOfGames(model, gamesToPlay=1,framesToAct=1, renderGame=False):
-    _, average = modelPlay(model=model,gamesToPlay=gamesToPlay,renderGame=renderGame)
+def modelPlaySetOfGames(DQNModel, gamesToPlay=1,framesToAct=1, renderGame=False):
+    _, average = modelPlay(DQNModel=DQNModel,gamesToPlay=gamesToPlay,renderGame=renderGame)
     return average
 
-def qLearn(trainingModel, targetModel):
-    # Set up the optimizer function
-    # https://becominghuman.ai/lets-build-an-atari-ai-part-1-dqn-df57e8ff3b26
-    # He describes the hyper paramters at the bottom
-    optimizer = optimizer=keras.optimizers.RMSprop(lr=LEARNING_RATE, rho=0.95, epsilon=0.01, momentum=0.95)
+def qLearn(trainingDQN, targetDQN):
+    # # Add checkpoint manager for trainingModel
+    # checkpointTrain = tf.train.Checkpoint(optimizer=trainingDQN.getModel().optimizer, model=trainingDQN.getModel())
+    # managerTrain = tf.train.CheckpointManager(
+    #     checkpointTrain, directory="checkpoints/training", max_to_keep=5)
 
-    # This was a guess taken from the keras website
-    # This didn't work
-    #optimizer = keras.optimizers.Adam(learning_rate=LEARNING_RATE, clipnorm=1.0)
-
-    # # Set up loss function
-    # loss_func = keras.losses.MeanSquaredError(reduction="auto", name="mean_squared_error")
-    # https://openai.com/blog/openai-baselines-dqn/
-    loss_func = keras.losses.Huber()
-
-    # Add checkpoint manager for trainingModel
-    checkpointTrain = tf.train.Checkpoint(optimizer=optimizer, model=train_model)
-    managerTrain = tf.train.CheckpointManager(
-        checkpointTrain, directory="./MsPacManQLearn/checkpoints/training", max_to_keep=5)
-
-    checkpointTarget = tf.train.Checkpoint(optimizer=optimizer, model=train_model)
+    checkpointTarget = tf.train.Checkpoint(optimizer=targetDQN.getModel().optimizer, model=targetDQN.getModel())
     managerTarget = tf.train.CheckpointManager(
-        checkpointTarget, directory="./MsPacManQLearn/checkpoints/target", max_to_keep=5)
+        checkpointTarget, directory="checkpoints/target", max_to_keep=5)
 
     #Create a file to hold stats about training
-    # f = open('./MsPacManQLearn/trainingStatsData.csv','w')
-    # f.write('Epoch, AI Game Avg Score, Loss,Epsilon,Training Ai Score\n')
-    # f.close()
+    f = open('trainingStatsData.csv','w')
+    f.write('Epoch, Loss,Epsilon,Training Ai Score\n')
+    f.close()
 
     # Set up q learning historical buffers
     prev_states = []
@@ -177,20 +141,20 @@ def qLearn(trainingModel, targetModel):
     next_states = []
     reward_history = []
     done_flags = []
-    num_states_in_history = 1000000
+    num_states_in_history = 200000
+    epsilon_random_frames = 50000
     train_model_after_num_actions = 4
-    update_target_model_after_num_epochs = NUM_STEPS_PER_EPOCH-1
+    update_target_model_after_num_frames = 10000
     
     # Book keeping variables
     frame_count = 0 # Number of frames seen
     epochs_ran = 0
     loss = 0
 
+    epsilon = 1.0
+
     trained = False
     while not trained:
-        # Keras progress bar for training information
-        #https://www.tensorflow.org/api_docs/python/tf/keras/utils/Progbar
-        prog_bar = tf.keras.utils.Progbar(NUM_STEPS_PER_EPOCH, width=30, verbose=1, interval=1.0, stateful_metrics=None, unit_name='step')
 
         loss_history = []
         epoch_reward = 0
@@ -200,25 +164,20 @@ def qLearn(trainingModel, targetModel):
         # Create a queue to hold the last 4 frames of the game
         stacked_frames = FrameStack(FRAME_STACKING)
         stacked_state = stacked_frames.reset(preprocessFrame(env.reset(),FRAME_X_SIZE))
+        stacked_state = stacked_state.reshape((INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
 
-        print("Epoch {0}/{1}".format(epochs_ran+1,NUM_EPOCHS))
+        print("Epoch {0}".format(epochs_ran+1))
 
         for i in range(1,NUM_STEPS_PER_EPOCH):
             frame_count += 1
 
             # Get action based on epsilion greedy algorithm
             # As we see more frames we will explore less and exploit more
-            epsilonGreedyState = stacked_state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2])
-            
-
-            global epsilon
-            # if epsilon > random.random():
-            #     action =  exploreAction()
-            # else:
-            #     action = exploitAction(trainingModel,epsilonGreedyState)
-            action = exploitAction(train_model,epsilonGreedyState)
-            action = np.argmax(train_model(epsilonGreedyState,training=False))
-                #print(action)
+            greedyEpsilonState = stacked_state.reshape((1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
+            if frame_count < epsilon_random_frames or epsilon > random.random():
+                action =  trainingDQN.exploreAction()
+            else:
+                action = trainingDQN.exploitAction(greedyEpsilonState)
 
             # Learn about it here
             # https://medium.com/analytics-vidhya/the-epsilon-greedy-algorithm-for-reinforcement-learning-5fe6f96dc870
@@ -227,31 +186,45 @@ def qLearn(trainingModel, targetModel):
             epsilon -= (eps_max-eps_min)/eps_decay_steps
             epsilon = max(eps_min, epsilon) # Decaying policy with more steps
 
-            # Do the action
-            state_next_single,reward,done,lives_left = env.step(action)
+            # Do the action for 
+            max_4_frames = []
+            reward_4_frames = 0
+            done = False
+            for _ in range(4):
+                state_next_single,reward,done,lives_left = env.step(action)
 
-            
+                max_4_frames.append(preprocessFrame(state_next_single,FRAME_X_SIZE))
+                reward_4_frames += reward
+
+                if done:
+                    break
+
+            state_next_single = np.array(max_4_frames).max(axis=0)
 
             # Processes game frame
             # Add new state to the stacked frames
             # Will pop out the oldest frame
-            stacked_state_next = stacked_frames.step(preprocessFrame(state_next_single,FRAME_X_SIZE))
+            stacked_state_next = stacked_frames.step(state_next_single)
+            stacked_state_next = stacked_state_next.reshape((INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
 
-            env.render()
+            #env.render()
 
             # Reset the enviornment if we lose all lives
             # Otherwise the game stays in this position for the remainder of the epoch
             # This was found out the hard way after 2 days of training and the bot
             # would stay in the same position, wonder why...
-            if done == True:
-                env.reset()
-                #stacked_state = stacked_frames.reset(preprocessFrame(env.reset()[0],FRAME_X_SIZE))
-                epoch_games_played+=1
-                old_lives_left = 3
-            elif lives_left['ale.lives'] != old_lives_left:
+            if lives_left['ale.lives'] != old_lives_left:
                 # We want to penalize the bot for dying
                 done = True
                 old_lives_left = lives_left['ale.lives']
+
+            # Save Score before clipping
+            epoch_reward += reward
+
+            # Reward cliping
+            # Deepmind talks about this in there paper
+            # Helps the bot understand death
+            reward = np.sign(reward)
 
             # Update the historical lists
             prev_states.append(stacked_state)
@@ -259,186 +232,83 @@ def qLearn(trainingModel, targetModel):
             next_states.append(stacked_state_next)
             reward_history.append(reward)
             done_flags.append(done)
-            epoch_reward += reward
+            
 
             # Update the current state
-            stacked_state = stacked_state_next          
+            stacked_state = stacked_state_next      
 
             # Train the training model if we moved enough times
             if frame_count % train_model_after_num_actions == 0 and len(reward_history) > BATCH_SIZE:
 
                 batch_states,batch_actions,batch_next_states,batch_rewards,batch_done = getBatchGameData(prev_states,prev_state_action,next_states,reward_history,done_flags,BATCH_SIZE)
 
-                # print('\n')
-                # print(np.average(batch_states))
-                # print(np.average(batch_next_states))
+                callBacks = trainingDQN.fit(target_model=targetDQN.getModel(),dcf=DISCOUNT_FACTOR,
+                                            states=batch_states,actions=batch_actions,
+                                            rewards=batch_rewards,next_states=batch_next_states,
+                                            done=batch_done,batch_size=BATCH_SIZE)
 
-                #print(np.equal(batch_states,batch_next_states))
-
-                #batch_next_states = batch_next_states.reshape((BATCH_SIZE,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
-
-                # Generate all the rewards for the next states
-                possible_rewards = target_model.predict(batch_next_states)   
-
-                # Set a any terminal states to 0
-                possible_rewards[batch_done] = -1
-
-                # Generate q values from all the next states
-                # Need to use tf.reduce_max because the possible_rewards is a tensor not an numpy array
-                # Multiplies the best reward value by the discount factor. THis is the bellman equation
-                q_values = batch_rewards + (DISCOUNT_FACTOR * np.max(possible_rewards, axis=1))
-                #q_values = batch_rewards + (DISCOUNT_FACTOR * tf.reduce_max(possible_rewards, axis=1))
-
-                # We need to penalize a death
-                # Check each index in batch_done for if the game is over
-                # for j in range(len(batch_done)):
-                #     if batch_done[j] == True:
-                #         q_values[j] = -1
-                # Code above doesn't work as you can't edit a tensor using list manipulation
-                # IDK how to fix
-                # https://keras.io/examples/rl/deep_q_network_breakout/
-                # What this line does is for each q value multiply it by (1 - each batch_done) and subtract batch_done
-                # Batch done contains booleans so 1 - true = 0 so if the game ended at that frame then 
-                # set that q value to -1 to punish the ai for making the move 
-                #q_values = q_values * (1 - batch_done) - batch_done
-
-                
-                # Create a mask so that we can ignore q values that didn't change
-                # Makes a one hot vector where each action is represented in binary
-                # https://machinelearningmastery.com/why-one-hot-encode-data-in-machine-learning/
-                action_mask = tf.one_hot(batch_actions, possibleMovesLen,on_value=1.0,off_value=0.0,)
-
-                # GradientTape monitors what calculations are done inside the
-                # statement so we can backpropigate using tensorflow functions
-                with tf.GradientTape() as tape:
-                    # Now we need to update the training model
-                    # We should find the difference in q values between the training model
-                    # and the target model. Incase our training model got worse
-                    orig_q_value = trainingModel(batch_states)
-
-                    # Generate the best action based on our q values. Using the one hot
-                    # mask we elimiate action that are equal to 0 and include actions
-                    # that are equal to 1. q_action is a number we want to maximise
-                    q_action = tf.reduce_sum(tf.multiply(orig_q_value,action_mask),axis=1)
-
-                    # Calcuate the loss between the q_action and all the q values
-                    loss = loss_func(q_values,q_action)
-
-                # Using tape, calculate the gradients and back propigate
-                gradients = tape.gradient(loss, trainingModel.trainable_variables)
-                optimizer.apply_gradients(zip(gradients,trainingModel.trainable_variables))
-
+                loss = callBacks.history['loss'][0]
                 loss_history.append(loss)
 
+
             # If we have done enought epochs then we should update the target model
-            if frame_count % update_target_model_after_num_epochs == 0:
-                # trainingModel.save('tmp_model')
-                # targetModel = keras.models.load_model('tmp_model')
-                #temp = trainingModel.get_weights()
-                #temp2 = targetModel.get_weights()
-                target_model.set_weights(train_model.get_weights())
-                #temp2 = targetModel.get_weights()
+            if frame_count % update_target_model_after_num_frames == 0:
+                targetDQN.setWeights(trainingDQN.getModel())
 
             # Clear out ram for the buffer if we reach max length
             if len(reward_history) > num_states_in_history:
-                #print("Deleting history")
                 del prev_states[:1]
                 del prev_state_action[:1]
                 del next_states[:1]
                 del reward_history[:1]
                 del done_flags[:1]
 
-            # Update kera progress bar
-            prog_bar.update(i,values=[('loss',loss)])
-
-        # End the progress bar to show the final numbers
-        prog_bar.update(i+1,values=[('loss',loss)],finalize=True)
-
-        # Save model after each epoch
-        #managerTarget.save()
-        #managerTrain.save()
-
-        # Run test games to check progress
-        numGameToRun = 3
-        #_,gameAverage = modelPlay(model=trainingModel,gamesToPlay=numGameToRun,renderGame=True)
-
-        scores = []
-        for _ in range(numGameToRun):
-            # Create frame stacking
-            stacked_frames = FrameStack(FRAME_STACKING)
-            stacked_state = stacked_frames.reset(preprocessFrame(env.reset(),FRAME_X_SIZE))
-
-            done = False
-            score = 0
-            frame_count = 0
-            action = 0
-            while not done:
-                frame_count +=1
-                
-                #Get new state, reward, and if we are done
-                # if frame_count % FRAME_STACKING == 0:
-                #     temp = stacked_state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2])
-                #     action = exploitAction(model,temp)
-
-                temp = stacked_state.reshape(1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2])
-                #action = exploitAction(trainingModel,temp)
-                action = np.argmax(train_model(temp,training=False))
-
-                state_next_single,reward2,done,lives_left = env.step(action)
-                stacked_state = stacked_frames.step(preprocessFrame(state_next_single,FRAME_X_SIZE))
-
-                env.render()
-
-                score += reward2
-
-            scores.append(score)
+            if done == True:
+                break
 
 
-
-        print("{0} game average: {1:0.2f}".format(numGameToRun,gameAverage))
-        print("Epsilon: {:0.5f}".format(epsilon))
+        print("Epsilon: {:0.4f}".format(epsilon))
         print("Epoch reward {:0.0f}".format(epoch_reward/epoch_games_played))
 
-        loss_avg = np.average(loss_history)
-
         # Save data for a graph
-        # f = open('./MsPacManQLearn/trainingStatsData.csv','a')
-        # f.write('{0},{1},{2},{3},{4}\n'.format(epochs_ran,gameAverage,loss_avg,epsilon,epoch_reward))
-        # f.close()
+        f = open('trainingStatsData.csv','a')
+        f.write('{0},{1},{2},{3}\n'.format(epochs_ran,loss_avg,epsilon,epoch_reward))
+        f.close()
 
-        # Need to come up with break condition
+
         epochs_ran += 1
-        if epochs_ran == NUM_EPOCHS:
-            trained = True
+
+        # Save model every 100 epochs
+        if epochs_ran % 100 == 0:
+            managerTarget.save()
            
-
-        # Create training model
-train_model = createNetwork(inputDataSize=INPUT_FRAME_SIZE,name="Train")
-
-# Create target model
-target_model = createNetwork(inputDataSize=INPUT_FRAME_SIZE,name="Target")
-
 def main():
     
+    target_model = DQNModel()
+    train_model = DQNModel()
 
-    target_model.set_weights(train_model.get_weights())
+    target_model.createModel(inputDataSize=INPUT_FRAME_SIZE,numActions=possibleMovesLen,lr=LEARNING_RATE,name="Target")
+    train_model.createModel(inputDataSize=INPUT_FRAME_SIZE,numActions=possibleMovesLen,lr=LEARNING_RATE,name="Train")
 
-    train_model.summary()
+    target_model.setWeights(train_model.getModel())
 
-    qLearn(trainingModel=train_model,targetModel=target_model)
+    train_model.getModel().summary()
 
-    train_model.save('./MsPacManQLearn/savedModels/firstTry/train')
-    target_model.save('./MsPacManQLearn/savedModels/firstTry/target')
+    qLearn(trainingDQN=train_model,targetDQN=target_model)
+
+    #train_model.getModel().save('savedModels/firstTry/train')
+    #target_model.getModel().save('savedModels/firstTry/target')
     
-    print("Testing models")
-    testingScores, average = modelPlay(target_model,100,renderGame=False)
+    # print("Testing models")
+    # testingScores, average = modelPlay(target_model,100,renderGame=False)
 
-    print("Average score for {0} games: {1}".format(100,average))
-    print("Scores for all games")
-    print(testingScores)
+    # print("Average score for {0} games: {1}".format(100,average))
+    # print("Scores for all games")
+    # print(testingScores)
 
     input("Press enter to see AI play game")
-    testingScores, average = modelPlay(target_model,3,renderGame=True)
+    _, average = modelPlay(target_model,10,renderGame=True)
+    print("Average score for {0} games: {1}".format(10,average))
     
 
 # Only run code if main called this file
@@ -447,4 +317,6 @@ if __name__ == "__main__":
     os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     print(tf.__version__)
     print(tf.config.list_physical_devices('GPU'))
+
+
     main()

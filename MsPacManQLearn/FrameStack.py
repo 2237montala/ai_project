@@ -10,22 +10,28 @@ class FrameStack():
         self.numStackedFrames = numStackFrames
 
     def reset(self,frame):
-        # Combine the input frame to find the max
-        maxFrame = np.maximum(frame,frame)
+        # # Combine the input frame to find the max
+        # maxFrame = np.maximum(frame,frame)
 
-        # Fill the stack states with initial state
-        for _ in range(self.numStackedFrames):
-            self.frames.append(maxFrame)
+        # # Fill the stack states with initial state
+        # for _ in range(self.numStackedFrames):
+        #     self.frames.append(maxFrame)
+
+        self.frames.append(frame)
+        self.frames.append(frame)
+        self.frames.append(frame)
+        self.frames.append(frame)
 
         #return np.stack(self.frames, axis=2)
         return np.array(self.frames)
     
     def step(self,frame):
         # Take the max of the last frame and the current on to extract different features
-        maxFrame = np.maximum(self.frames[-1],frame)
+        #maxFrame = np.maximum(self.frames[-1],frame)
 
 
-        self.frames.append(maxFrame)
+        #self.frames.append(maxFrame)
+        self.frames.append(frame)
 
         # Return the current state and the list of states
         #return np.stack(self.frames, axis=2)
