@@ -83,7 +83,7 @@ is chosen by selecting the larger of the four Q-values predicted in the output l
 
 num_actions = 9
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-
+#os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 print(tf.__version__)
 print(tf.config.list_physical_devices('GPU'))
 
@@ -137,7 +137,7 @@ epsilon_random_frames = 50000
 epsilon_greedy_frames = 1000000.0
 # Maximum replay length
 # Note: The Deepmind paper suggests 1000000 however this causes memory issues
-max_memory_length = 100000
+max_memory_length = 15000
 # Train the model after 4 actions
 update_after_actions = 4
 # How often to update the target network
@@ -261,7 +261,7 @@ while True:  # Run until solved
 
     episode_count += 1
 
-    if episode_count == 300:
+    if frame_count == 3000000:
         # Save 300 epoch models
         model.save('savedModels/deepmind/train')
         model_target.save('savedModels/deepmind/target')
