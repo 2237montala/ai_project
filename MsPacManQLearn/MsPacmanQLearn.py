@@ -18,7 +18,7 @@ import time
 # https://becominghuman.ai/beat-atari-with-deep-reinforcement-learning-part-2-dqn-improvements-d3563f665a2c
 
 # Create game
-env = gym.make("MsPacmanNoFrameskip-v0")
+env = gym.make("MsPacman-v0")
 
 #possibleMoves = [2,3,4,5]
 possibleMoves = [0,1,2,3,4,5,6,7,8]
@@ -131,9 +131,9 @@ def qLearn(trainingDQN, targetDQN):
         checkpointTarget, directory="checkpoints/target", max_to_keep=5)
 
     #Create a file to hold stats about training
-    f = open('trainingStatsData.csv','w')
-    f.write('Epoch, Loss,Epsilon,Training Ai Score\n')
-    f.close()
+    # f = open('trainingStatsData.csv','w')
+    # f.write('Epoch, Loss,Epsilon,Training Ai Score\n')
+    # f.close()
 
     # Set up q learning historical buffers
     prev_states = []
@@ -141,7 +141,8 @@ def qLearn(trainingDQN, targetDQN):
     next_states = []
     reward_history = []
     done_flags = []
-    num_states_in_history = 200000
+    episode_reward_history = []
+    num_states_in_history = 100000
     epsilon_random_frames = 50000
     train_model_after_num_actions = 4
     update_target_model_after_num_frames = 10000
@@ -149,6 +150,7 @@ def qLearn(trainingDQN, targetDQN):
     # Book keeping variables
     frame_count = 0 # Number of frames seen
     epochs_ran = 0
+    running_reward = 0
     loss = 0
 
     epsilon = 1.0
@@ -166,7 +168,7 @@ def qLearn(trainingDQN, targetDQN):
         stacked_state = stacked_frames.reset(preprocessFrame(env.reset(),FRAME_X_SIZE))
         stacked_state = stacked_state.reshape((INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
 
-        print("Epoch {0}".format(epochs_ran+1))
+        #print("Epoch {0}".format(epochs_ran+1))
 
         for i in range(1,NUM_STEPS_PER_EPOCH):
             frame_count += 1
@@ -186,11 +188,12 @@ def qLearn(trainingDQN, targetDQN):
             epsilon -= (eps_max-eps_min)/eps_decay_steps
             epsilon = max(eps_min, epsilon) # Decaying policy with more steps
 
-            # Do the action for 
+            # Do the action for 4 consecutive frames
+            # This is modeled afer Env wrapper MaxandSkip
             max_4_frames = []
             reward_4_frames = 0
             done = False
-            for _ in range(4):
+            for _ in range(FRAME_STACKING):
                 state_next_single,reward,done,lives_left = env.step(action)
 
                 max_4_frames.append(preprocessFrame(state_next_single,FRAME_X_SIZE))
@@ -200,7 +203,7 @@ def qLearn(trainingDQN, targetDQN):
                     break
 
             state_next_single = np.array(max_4_frames).max(axis=0)
-
+            reward = reward_4_frames
             # Processes game frame
             # Add new state to the stacked frames
             # Will pop out the oldest frame
@@ -213,7 +216,9 @@ def qLearn(trainingDQN, targetDQN):
             # Otherwise the game stays in this position for the remainder of the epoch
             # This was found out the hard way after 2 days of training and the bot
             # would stay in the same position, wonder why...
-            if lives_left['ale.lives'] != old_lives_left:
+            if done == True:
+                old_lives_left = 3
+            elif lives_left['ale.lives'] != old_lives_left:
                 # We want to penalize the bot for dying
                 done = True
                 old_lives_left = lives_left['ale.lives']
@@ -255,6 +260,9 @@ def qLearn(trainingDQN, targetDQN):
             if frame_count % update_target_model_after_num_frames == 0:
                 targetDQN.setWeights(trainingDQN.getModel())
 
+                print("Epoch {0},Epsilon: {1:0.4f}, Running Reward {2:0.0f}, Frame Count {3}".format(epochs_ran,epsilon,(running_reward),frame_count))
+                epoch_games_played = 1
+
             # Clear out ram for the buffer if we reach max length
             if len(reward_history) > num_states_in_history:
                 del prev_states[:1]
@@ -267,13 +275,18 @@ def qLearn(trainingDQN, targetDQN):
                 break
 
 
-        print("Epsilon: {:0.4f}".format(epsilon))
-        print("Epoch reward {:0.0f}".format(epoch_reward/epoch_games_played))
+        episode_reward_history.append(epoch_reward)
+        if len(episode_reward_history) > 100:
+            del episode_reward_history[:1]
+        running_reward = np.mean(episode_reward_history)
+        #print("Epoch {0},Epsilon: {1:0.4f}, Epoch Reward {2:0.0f}, Frame Count {3}".format(epochs_ran,epsilon,(epoch_reward/epoch_games_played),frame_count))
+
+        #loss_avg = np.average(loss_history)
 
         # Save data for a graph
-        f = open('trainingStatsData.csv','a')
-        f.write('{0},{1},{2},{3}\n'.format(epochs_ran,loss_avg,epsilon,epoch_reward))
-        f.close()
+        # f = open('trainingStatsData.csv','a')
+        # f.write('{0},{1},{2},{3}\n'.format(epochs_ran,loss_avg,epsilon,epoch_reward))
+        # f.close()
 
 
         epochs_ran += 1
@@ -314,9 +327,7 @@ def main():
 # Only run code if main called this file
 if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    #os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     print(tf.__version__)
     print(tf.config.list_physical_devices('GPU'))
-
-
     main()
