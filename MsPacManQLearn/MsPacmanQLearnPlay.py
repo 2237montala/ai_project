@@ -1,3 +1,11 @@
+"""
+    This program runs the saved model on a set of games
+    Models can be stored any where but by default it looks in the 
+    folder 300EpochTrain
+
+    The number of games can be specified
+"""
+
 import gym
 import numpy as np
 import tensorflow as tf
@@ -37,8 +45,12 @@ def preprocessFrame(frameIn, sizeX):
 
 targetModel = keras.models.load_model('./MsPacManQLearn/oldModels/300EpochTrain/target')
 
+# Change this number to change how many games a played
 gamesToPlay = 10
 env = gym.make("MsPacman-v0")
+
+# If true then the game is rendered on screen
+# If false nothing is shown on screen
 renderGame = True
 
 scores = []

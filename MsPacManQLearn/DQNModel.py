@@ -12,7 +12,6 @@ class DQNModel():
         pass
 
     def createModel(self,inputDataSize,numActions,lr,name):
-
         # Create a special weight inializer
         initalizer = tf.keras.initializers.VarianceScaling(scale=2.0)
 
@@ -53,26 +52,14 @@ class DQNModel():
         return np.random.choice(self.numActions)
 
     def exploitAction(self, state):
-        
-        # state_tensor = tf.convert_to_tensor(state)
-        # state_tensor = tf.expand_dims(state_tensor, 0)
-        # action_probs = self.model(state_tensor, training=False)
-
-        # return tf.argmax(action_probs[0]).numpy()
         predictions = self.model.predict(state)
         return np.argmax(predictions)
-        #return np.argmax(self.model(state,training=False))
 
     def fit(self,target_model,dcf,states,actions,rewards,next_states,done,batch_size):
         history = History()
 
-        #action_one_hot = np.ones(actions.shape)
+        # Generate the possible rewards to all the next states
         possible_rewards = target_model.predict(next_states)
-        #possible_rewards = target_model.predict([next_states, action_one_hot])
-
-        # Debugging line for seeing if the done state is correct
-        # if np.any(done[:] == 1):
-        #     print()
 
         # Calculate best q value for each state
         q_values = rewards + (dcf * np.max(possible_rewards, axis=1))
@@ -87,4 +74,6 @@ class DQNModel():
         self.model.fit(states,action_mask * updated_q_values[:, None],batch_size=batch_size,
                         epochs=1,callbacks=[history],verbose=0)
 
+        # Return the history from training
+        # For now this is just the loss values
         return history

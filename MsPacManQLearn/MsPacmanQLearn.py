@@ -38,7 +38,7 @@ BATCH_SIZE = 32   # Number of games per training session
 LEARNING_RATE = 0.00025 
 DISCOUNT_FACTOR = 0.99 # How much the current state reward is reduced by
 
-eps_min = 0.1 #0.05
+eps_min = 0.1
 eps_max = 1.0
 eps_decay_steps = 1000000.0 # this value specifies how many frame we need to see before
                             # we switch from explore to exploit
@@ -121,11 +121,6 @@ def modelPlaySetOfGames(DQNModel, gamesToPlay=1,framesToAct=1, renderGame=False)
     return average
 
 def qLearn(trainingDQN, targetDQN):
-    # # Add checkpoint manager for trainingModel
-    # checkpointTrain = tf.train.Checkpoint(optimizer=trainingDQN.getModel().optimizer, model=trainingDQN.getModel())
-    # managerTrain = tf.train.CheckpointManager(
-    #     checkpointTrain, directory="checkpoints/training", max_to_keep=5)
-
     checkpointTarget = tf.train.Checkpoint(optimizer=targetDQN.getModel().optimizer, model=targetDQN.getModel())
     managerTarget = tf.train.CheckpointManager(
         checkpointTarget, directory="checkpoints/target", max_to_keep=5)
@@ -143,7 +138,6 @@ def qLearn(trainingDQN, targetDQN):
     done_flags = []
     episode_reward_history = []
     num_states_in_history = 100000
-    epsilon_random_frames = 50000
     train_model_after_num_actions = 4
     update_target_model_after_num_frames = 10000
     
@@ -157,7 +151,6 @@ def qLearn(trainingDQN, targetDQN):
 
     trained = False
     while not trained:
-
         loss_history = []
         epoch_reward = 0
         epoch_games_played = 1
@@ -170,13 +163,14 @@ def qLearn(trainingDQN, targetDQN):
 
         #print("Epoch {0}".format(epochs_ran+1))
 
-        for i in range(1,NUM_STEPS_PER_EPOCH):
+        for _ in range(1,NUM_STEPS_PER_EPOCH):
             frame_count += 1
 
             # Get action based on epsilion greedy algorithm
             # As we see more frames we will explore less and exploit more
+            # Model expects a (1,85,80,4) array so we need to add a dimension to the image
             greedyEpsilonState = stacked_state.reshape((1,INPUT_FRAME_SIZE[0],INPUT_FRAME_SIZE[1],INPUT_FRAME_SIZE[2]))
-            if frame_count < epsilon_random_frames or epsilon > random.random():
+            if epsilon > random.random():
                 action =  trainingDQN.exploreAction()
             else:
                 action = trainingDQN.exploitAction(greedyEpsilonState)
@@ -190,6 +184,7 @@ def qLearn(trainingDQN, targetDQN):
 
             # Do the action for 4 consecutive frames
             # This is modeled afer Env wrapper MaxandSkip
+            # This fixes the frame maxing issue from before
             max_4_frames = []
             reward_4_frames = 0
             done = False
@@ -202,8 +197,10 @@ def qLearn(trainingDQN, targetDQN):
                 if done:
                     break
 
+            # Max the last 4 frames to remove any disappearing sprites
             state_next_single = np.array(max_4_frames).max(axis=0)
             reward = reward_4_frames
+
             # Processes game frame
             # Add new state to the stacked frames
             # Will pop out the oldest frame
@@ -238,7 +235,6 @@ def qLearn(trainingDQN, targetDQN):
             reward_history.append(reward)
             done_flags.append(done)
             
-
             # Update the current state
             stacked_state = stacked_state_next      
 
@@ -260,10 +256,7 @@ def qLearn(trainingDQN, targetDQN):
             if frame_count % update_target_model_after_num_frames == 0:
                 targetDQN.setWeights(trainingDQN.getModel())
 
-                print("Epoch {0},Epsilon: {1:0.4f}, Running Reward {2:0.0f}, Frame Count {3}".format(epochs_ran,epsilon,(running_reward),frame_count))
-                epoch_games_played = 1
-
-            # Clear out ram for the buffer if we reach max length
+            # Delete the oldest value in the history buffers
             if len(reward_history) > num_states_in_history:
                 del prev_states[:1]
                 del prev_state_action[:1]
@@ -271,19 +264,15 @@ def qLearn(trainingDQN, targetDQN):
                 del reward_history[:1]
                 del done_flags[:1]
 
+            # If we die we want to start over with a new game
             if done == True:
                 break
 
 
-        episode_reward_history.append(epoch_reward)
-        if len(episode_reward_history) > 100:
-            del episode_reward_history[:1]
-        running_reward = np.mean(episode_reward_history)
-        #print("Epoch {0},Epsilon: {1:0.4f}, Epoch Reward {2:0.0f}, Frame Count {3}".format(epochs_ran,epsilon,(epoch_reward/epoch_games_played),frame_count))
-
-        #loss_avg = np.average(loss_history)
+        print("Epoch {0},Epsilon: {1:0.4f}, Epoch Reward {2:0.0f}, Frame Count {3}".format(epochs_ran,epsilon,(epoch_reward/epoch_games_played),frame_count))
 
         # Save data for a graph
+        # loss_avg = np.average(loss_history)
         # f = open('trainingStatsData.csv','a')
         # f.write('{0},{1},{2},{3}\n'.format(epochs_ran,loss_avg,epsilon,epoch_reward))
         # f.close()
@@ -308,16 +297,13 @@ def main():
     train_model.getModel().summary()
 
     qLearn(trainingDQN=train_model,targetDQN=target_model)
-
-    #train_model.getModel().save('savedModels/firstTry/train')
-    #target_model.getModel().save('savedModels/firstTry/target')
     
-    # print("Testing models")
-    # testingScores, average = modelPlay(target_model,100,renderGame=False)
+    print("Testing models")
+    testingScores, average = modelPlay(target_model,100,renderGame=False)
 
-    # print("Average score for {0} games: {1}".format(100,average))
-    # print("Scores for all games")
-    # print(testingScores)
+    print("Average score for {0} games: {1}".format(100,average))
+    print("Scores for all games")
+    print(testingScores)
 
     input("Press enter to see AI play game")
     _, average = modelPlay(target_model,10,renderGame=True)
@@ -327,7 +313,7 @@ def main():
 # Only run code if main called this file
 if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
-    #os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
     print(tf.__version__)
     print(tf.config.list_physical_devices('GPU'))
     main()
